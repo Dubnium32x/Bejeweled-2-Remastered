@@ -19,7 +19,7 @@ namespace Bejeweled_2_Remastered.jxl
                 ProcessStartInfo startInfo = new ProcessStartInfo
                 {
                     FileName = "ffmpeg",
-                    Arguments = $"-y -i \"{jxlFilePath}\" \"{pngFilePath}\"",
+                    Arguments = $"-y -i \"{jxlFilePath}\" -frames:v 1 -update 1 \"{pngFilePath}\"",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
