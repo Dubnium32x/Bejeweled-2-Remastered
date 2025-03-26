@@ -178,16 +178,25 @@ namespace Bejeweled_2_Remastered.Screens
 
         private void UpdateSparkle()
         {
-            if (!isSparkling) return;
+            if (!isSparkling)
+            {
+            sparkleTimer += Raylib.GetFrameTime();
+            if (sparkleTimer >= sparklePauseDuration)
+            {
+                sparkleTimer = 0.0f;
+                isSparkling = true;
+            }
+            return;
+            }
 
             sparkleTimer += Raylib.GetFrameTime();
             if (sparkleTimer >= sparkleDuration)
             {
             isSparkling = false;
             sparkleTimer = 0.0f;
+            sparklePauseDuration = new Random().Next(1, 4); // Randomly set pause duration between 1 to 3 seconds
             // Randomly select a new star to sparkle
             sparklePosition = starPositions[new Random().Next(starCount)];
-            isSparkling = true;
             }
         }
 
