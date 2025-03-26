@@ -1,6 +1,10 @@
 using System;
+using System.Numerics;
 using System.IO;
 using Raylib_cs;
+
+using Bejeweled_2_Remastered.Screens;
+using Bejeweled_2_Remastered.jxl;
 
 namespace Bejeweled_2_Remastered.Screens
 {
@@ -8,11 +12,9 @@ namespace Bejeweled_2_Remastered.Screens
     {
         private ScreenManager screenManager;
         private Texture2D backdrop;
-        private Texture2D gradientBackground;
 
-        // Define the colors for the gradient
-        private Color startColor = new Color(41, 65, 107, 255);
-        private Color endColor = new Color(173, 199, 206, 255);
+        // Define the background color
+        private Color backgroundColor = new Color(41, 65, 107, 255);
 
         public TitleScreen(ScreenManager screenManager)
         {
@@ -47,10 +49,6 @@ namespace Bejeweled_2_Remastered.Screens
 
                 backdrop = Raylib.LoadTexture(pngFilePath);
                 Console.WriteLine("TitleScreen: Resources loaded.");
-
-                // Create the gradient background texture
-                gradientBackground = CreateGradientTexture(Raylib.GetScreenWidth(), Raylib.GetScreenHeight(), startColor, endColor);
-                Console.WriteLine("TitleScreen: Gradient background created.");
             }
             catch (Exception ex)
             {
@@ -62,7 +60,6 @@ namespace Bejeweled_2_Remastered.Screens
         {
             Console.WriteLine("TitleScreen: Unloading resources...");
             Raylib.UnloadTexture(backdrop);
-            Raylib.UnloadTexture(gradientBackground);
             Console.WriteLine("TitleScreen: Resources unloaded.");
         }
 
@@ -74,17 +71,9 @@ namespace Bejeweled_2_Remastered.Screens
         public void Draw()
         {
             Raylib.BeginDrawing();
-            Raylib.DrawTexturePro(gradientBackground, new Rectangle(0, 0, gradientBackground.width, gradientBackground.height), new Rectangle(0, 0, Raylib.GetScreenWidth(), Raylib.GetScreenHeight()), new Vector2(0, 0), 0, Color.WHITE);
-            Raylib.DrawTexturePro(backdrop, new Rectangle(0, 0, backdrop.width, backdrop.height), new Rectangle(0, 0, Raylib.GetScreenWidth(), Raylib.GetScreenHeight()), new Vector2(0, 0), 0, Color.WHITE);
+            Raylib.ClearBackground(backgroundColor);
+            Raylib.DrawTexturePro(backdrop, new Rectangle(0, 0, backdrop.Width, backdrop.Height), new Rectangle(0, 0, Raylib.GetScreenWidth(), Raylib.GetScreenHeight()), new Vector2(0, 0), 0, Color.White);
             Raylib.EndDrawing();
-        }
-
-        private Texture2D CreateGradientTexture(int width, int height, Color startColor, Color endColor)
-        {
-            Image gradientImage = Raylib.GenImageGradient(width, height, startColor, endColor, GradientDirection.Vertical);
-            Texture2D texture = Raylib.LoadTextureFromImage(gradientImage);
-            Raylib.UnloadImage(gradientImage);
-            return texture;
         }
     }
 }
