@@ -27,8 +27,9 @@ namespace Bejeweled_2_Remastered.Screens
         // Define sparkle effect properties
         private bool isSparkling = false;
         private Vector2 sparklePosition;
-        private float sparkleDuration = 1.0f; // Duration of sparkle effect in seconds
-        private float sparkleTimer = 0.2f;
+        private float sparkleDuration = 0.8f; // Duration of sparkle effect in seconds
+        private float sparkleTimer = 0.0f;
+        private float sparklePauseDuration = 1.7f; // Duration of pause between sparkles
 
         public TitleScreen(ScreenManager screenManager)
         {
@@ -194,13 +195,25 @@ namespace Bejeweled_2_Remastered.Screens
         {
             if (!isSparkling) return;
 
-            // Draw sparkle effect at the sparkle position with scale 1/100 of its size
-            float scale = 0.01f;
+            // Update sparkle position to move upwards
+            sparklePosition.Y -= starSpeed * Raylib.GetFrameTime();
+            if (sparklePosition.Y < 0)
+            {
+            // Reset sparkle position to a random star when it moves off-screen
+            sparklePosition = starPositions[new Random().Next(starCount)];
+            }
+
+            // Calculate scale based on sparkle timer to create a grow-shrink effect
+            float scale = 0.07f + 0.06f * (float)Math.Sin((sparkleTimer / sparkleDuration / 1.25f) * Math.PI * 2);
+
+            // Calculate rotation angle based on sparkle timer
+            float rotation = (sparkleTimer / sparkleDuration) * 360.0f;
+
             Rectangle sourceRect = new Rectangle(0, 0, sparkleTextureWithAlpha.Width, sparkleTextureWithAlpha.Height);
             Rectangle destRect = new Rectangle(sparklePosition.X, sparklePosition.Y, sparkleTextureWithAlpha.Width * scale, sparkleTextureWithAlpha.Height * scale);
-            Vector2 origin = new Vector2(sparkleTextureWithAlpha.Width * scale, sparkleTextureWithAlpha.Height * scale);
+            Vector2 origin = new Vector2((sparkleTextureWithAlpha.Width * scale) / 2, (sparkleTextureWithAlpha.Height * scale) / 2);
 
-            Raylib.DrawTexturePro(sparkleTextureWithAlpha, sourceRect, destRect, origin, 0, Color.White);
+            Raylib.DrawTexturePro(sparkleTextureWithAlpha, sourceRect, destRect, origin, rotation, Color.White);
         }
 
         private void DrawStars()
