@@ -9,7 +9,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Lerp" Version="1.0.3" />
     <PackageReference Include="Raylib-cs" Version="5.5.0" />
+    <PackageReference Include="System.Numerics.Vectors" Version="4.6.1" />
   </ItemGroup>
 
 </Project>

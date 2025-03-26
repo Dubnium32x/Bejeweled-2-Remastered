@@ -43,9 +43,17 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "dependencies": {
+            "Lerp": {
+              "target": "Package",
+              "version": "[1.0.3, )"
+            },
             "Raylib-cs": {
               "target": "Package",
               "version": "[5.5.0, )"
+            },
+            "System.Numerics.Vectors": {
+              "target": "Package",
+              "version": "[4.6.1, )"
             }
           },
           "imports": [

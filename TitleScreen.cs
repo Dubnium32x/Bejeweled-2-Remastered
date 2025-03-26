@@ -1,6 +1,8 @@
 using System;
 using System.Numerics;
 using System.IO;
+
+using Lerp;
 using Raylib_cs;
 
 using Bejeweled_2_Remastered.jxl;
@@ -14,6 +16,10 @@ namespace Bejeweled_2_Remastered.Screens
         private Texture2D backdrop;
         private Texture2D sparkle;
         private Texture2D sparkleTextureWithAlpha;
+        private Texture2D planetTexture;
+        private Texture2D planetTextureWithAlpha;
+        private Texture2D titleLogoTexture;
+        private Texture2D titleLogoTextureWithAlpha;
 
         // Define the background color
         private Color backgroundColor = new Color(41, 65, 107, 255);
@@ -26,15 +32,22 @@ namespace Bejeweled_2_Remastered.Screens
 
         // Define sparkle effect properties
         private bool isSparkling = false;
+        private Vector2 planetPosition;
         private Vector2 sparklePosition;
+        public Vector2 titleLogoPosition;
         private float sparkleDuration = 0.8f; // Duration of sparkle effect in seconds
         private float sparkleTimer = 0.0f;
         private float sparklePauseDuration = 1.7f; // Duration of pause between sparkles
+
+        private float titleLogoDuration = 1.0f;
+        private float titleLogoTimer = 0.0f;
 
         public TitleScreen(ScreenManager screenManager)
         {
             this.screenManager = screenManager;
             InitializeStars();
+            InitializePlanet();
+            InitializeTitleLogo();
         }
 
         public void Load()
@@ -73,6 +86,50 @@ namespace Bejeweled_2_Remastered.Screens
 
             // Load sparkle effect
             LoadSparkleEffect();
+            // Load planet texture
+            LoadPlanet();
+            // Load title logo
+            LoadTitleLogo();
+        }
+
+        private void LoadPlanet()
+        {
+            string jxlFilePath1 = "res/images/planet1_frame_0001.jxl";
+            string jxlFilePath2 = "res/images/planet1__frame_0001.jxl";
+            try
+            {
+                if (!File.Exists(jxlFilePath1))
+                {
+                    throw new FileNotFoundException($"The file {jxlFilePath1} does not exist.");
+                }
+
+                string pngFilePath1 = JxlConverter.ConvertJxlToPng(jxlFilePath1);
+
+                if (!File.Exists(pngFilePath1))
+                {
+                    throw new FileNotFoundException($"The PNG file {pngFilePath1} does not exist after conversion.");
+                }
+
+                if (!File.Exists(jxlFilePath2))
+                {
+                    throw new FileNotFoundException($"The file {jxlFilePath2} does not exist.");
+                }
+                string pngFilePath2 = JxlConverter.ConvertJxlToPng(jxlFilePath2);
+                if (!File.Exists(pngFilePath2))
+                {
+                    throw new FileNotFoundException($"The PNG file {pngFilePath2} does not exist after conversion.");
+                }
+
+                Image planetImage = Raylib.LoadImage(pngFilePath1);
+                Image maskImage = Raylib.LoadImage(pngFilePath2);
+                Image maskedImage = ApplyAlphaMask(planetImage, maskImage);
+                planetTextureWithAlpha = Raylib.LoadTextureFromImage(maskedImage);
+                Console.WriteLine("Planet texture loaded successfully.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading planet texture: {ex.Message}");
+            }
         }
 
         private void LoadSparkleEffect()
@@ -122,6 +179,59 @@ namespace Bejeweled_2_Remastered.Screens
             }
         }
 
+        public void LoadTitleLogo()
+        {
+            bool isLoaded = false;
+            // Load the title logo texture
+            string jxlFilePath1 = "res/images/title_logo.jxl";
+            string jxlFilePath2 = "res/images/title_logo__frame_0001.jxl";
+
+            try
+            {
+                if (!File.Exists(jxlFilePath1))
+                {
+                    throw new FileNotFoundException($"The file {jxlFilePath1} does not exist.");
+                }
+
+                string pngFilePath1 = JxlConverter.ConvertJxlToPng(jxlFilePath1);
+
+                if (!File.Exists(pngFilePath1))
+                {
+                    throw new FileNotFoundException($"The PNG file {pngFilePath1} does not exist after conversion.");
+                }
+
+                if (!File.Exists(jxlFilePath2))
+                {
+                    throw new FileNotFoundException($"The file {jxlFilePath2} does not exist.");
+                }
+                string pngFilePath2 = JxlConverter.ConvertJxlToPng(jxlFilePath2);
+                if (!File.Exists(pngFilePath2))
+                {
+                    throw new FileNotFoundException($"The PNG file {pngFilePath2} does not exist after conversion.");
+                }
+
+                Image titleImage = Raylib.LoadImage(pngFilePath1);
+                Image maskImage = Raylib.LoadImage(pngFilePath2);
+                Image maskedImage = ApplyAlphaMask(titleImage, maskImage);
+                titleLogoTextureWithAlpha = Raylib.LoadTextureFromImage(maskedImage);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading title logo: {ex.Message}");
+            }
+            // Check if the title logo texture was loaded successfully
+            if (File.Exists("res/images/title_logo.png"))
+            {
+                isLoaded = true;
+                Console.WriteLine("Title logo loaded successfully.");
+            }
+            else
+            {
+                Console.WriteLine("Failed to load title logo.");
+            }
+
+        }
+
         public void Unload()
         {
             Console.WriteLine("TitleScreen: Unloading resources...");
@@ -135,7 +245,7 @@ namespace Bejeweled_2_Remastered.Screens
         {
             UpdateStars();
             UpdateSparkle();
-            // Update title screen logic here
+            UpdateTitleLogo();
         }
 
         public void Draw()
@@ -144,6 +254,8 @@ namespace Bejeweled_2_Remastered.Screens
             Raylib.ClearBackground(backgroundColor);
             DrawStars();
             DrawSparkle();
+            DrawPlanet();
+            DrawTitleLogo();
             Raylib.DrawTexturePro(backdrop, new Rectangle(0, 0, backdrop.Width, backdrop.Height), new Rectangle(0, 0, Raylib.GetScreenWidth(), Raylib.GetScreenHeight()), new Vector2(0, 0), 0, Color.White);
             Raylib.EndDrawing();
         }
@@ -160,6 +272,35 @@ namespace Bejeweled_2_Remastered.Screens
             // Initialize sparkle
             sparklePosition = starPositions[rand.Next(starCount)];
             isSparkling = true;
+        }
+
+        private void InitializePlanet()
+        {
+            Random rand = new Random();
+            planetPosition = new Vector2(Raylib.GetScreenWidth(), Raylib.GetScreenHeight());
+        }
+
+        private void InitializeTitleLogo()
+        {
+            titleLogoPosition = new Vector2((Raylib.GetScreenWidth() - titleLogoTextureWithAlpha.Width) / 2, (Raylib.GetScreenHeight()));
+        }
+
+        private void UpdateTitleLogo()
+        {
+            bool clickedPlay = false;
+            // Update title logo position to move upwards
+            if (File.Exists("res/images/title_logo.png"))
+            {
+                float deltaTime = Raylib.GetFrameTime();
+                Vector2 logoDest = new Vector2((Raylib.GetScreenWidth() - titleLogoTextureWithAlpha.Width) / 2,
+                    (Raylib.GetScreenHeight() - titleLogoTextureWithAlpha.Height) + (Raylib.GetScreenHeight() / 4));
+                titleLogoTimer += deltaTime;
+
+                if (titleLogoTimer >= titleLogoDuration)
+                {
+                    titleLogoPosition.Y -= (titleLogoPosition.Y - logoDest.Y) * 0.1f;
+                }
+            }
         }
 
         private void UpdateStars()
@@ -222,6 +363,26 @@ namespace Bejeweled_2_Remastered.Screens
             {
                 Raylib.DrawCircle((int)position.X, (int)position.Y, 1, starColor);
             }
+        }
+        private void DrawPlanet()
+        {
+            float scale = 0.5f;
+
+            planetPosition.Y -= (starSpeed / 2) * Raylib.GetFrameTime();
+
+            Rectangle sourceRect = new Rectangle(0, 0, planetTextureWithAlpha.Width, planetTextureWithAlpha.Height);
+            Rectangle destRect = new Rectangle(planetPosition.X, planetPosition.Y, planetTextureWithAlpha.Width * scale, planetTextureWithAlpha.Height * scale);
+            Vector2 origin = new Vector2((planetTextureWithAlpha.Width * scale) / 2, (planetTextureWithAlpha.Height * scale) / 2);
+            Raylib.DrawTexturePro(planetTextureWithAlpha, sourceRect, destRect, origin, 0, Color.White);
+        }
+
+        private void DrawTitleLogo()
+        {
+            float scale = 0.25f;
+            Rectangle sourceRect = new Rectangle(0, 0, titleLogoTextureWithAlpha.Width, titleLogoTextureWithAlpha.Height);
+            Rectangle destRect = new Rectangle(titleLogoPosition.X, titleLogoPosition.Y, titleLogoTextureWithAlpha.Width * scale, titleLogoTextureWithAlpha.Height * scale);
+            Vector2 origin = new Vector2((titleLogoTextureWithAlpha.Width * scale) / 2, (titleLogoTextureWithAlpha.Height * scale) / 2);
+            Raylib.DrawTexturePro(titleLogoTextureWithAlpha, sourceRect, destRect, origin, 0, Color.White);
         }
 
         private Image ApplyAlphaMask(Image baseImage, Image maskImage)

@@ -12,4 +12,10 @@
   <ItemGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
     <SourceRoot Include="/home/dylan/.nuget/packages/" />
   </ItemGroup>
+  <ImportGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
+    <Import Project="$(NuGetPackageRoot)fsharp.compiler.tools/10.0.2/build/FSharp.Compiler.Tools.props" Condition="Exists('$(NuGetPackageRoot)fsharp.compiler.tools/10.0.2/build/FSharp.Compiler.Tools.props')" />
+  </ImportGroup>
+  <PropertyGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
+    <PkgFSharp_Compiler_Tools Condition=" '$(PkgFSharp_Compiler_Tools)' == '' ">/home/dylan/.nuget/packages/fsharp.compiler.tools/10.0.2</PkgFSharp_Compiler_Tools>
+  </PropertyGroup>
 </Project>
