@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "dgSpecHash": "JHbui4l6r2I=",
+  "success": true,
+  "projectFilePath": "/home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/Bejeweled-2-Remastered.csproj",
+  "expectedPackageFiles": [
+    "/home/dylan/.nuget/packages/raylib-cs/6.0.0/raylib-cs.6.0.0.nupkg.sha512",
+    "/home/dylan/.nuget/packages/system.numerics.vectors/4.5.0/system.numerics.vectors.4.5.0.nupkg.sha512"
+  ],
+  "logs": [
+    {
+      "code": "NU1603",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "Bejeweled-2-Remastered depends on Raylib-cs (>= 5.5.0) but Raylib-cs 5.5.0 was not found. An approximate best match of Raylib-cs 6.0.0 was resolved.",
+      "libraryId": "Raylib-cs",
+      "targetGraphs": [
+        "net8.0"
+      ]
+    }
+  ]
+}
