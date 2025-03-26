@@ -1,33 +1,10 @@
 using System;
-
 using Raylib_cs;
-
-using Bejeweled_2_Remastered.jxl;
 using Bejeweled_2_Remastered.Screens;
+using Bejeweled_2_Remastered.jxl;
 
-namespace Bejeweled_2_Remastered.Screens
+namespace Bejeweled_2_Remastered
 {
-    public enum ScreenState
-    {
-        Title,
-        MainMenu,
-        Classic,
-        Zen,
-        Action,
-        Puzzle,
-        Settings,
-        Credits,
-        Exit
-    }
-
-    public interface IScreen
-    {
-        void Load();
-        void Unload();
-        void Update();
-        void Draw();
-    }
-
     public class ScreenManager
     {
         private ScreenState currentState;
@@ -35,43 +12,34 @@ namespace Bejeweled_2_Remastered.Screens
 
         public ScreenManager()
         {
+            Console.WriteLine("Initializing ScreenManager...");
             ChangeState(ScreenState.MainMenu);
+            Console.WriteLine("ScreenManager initialized.");
         }
 
         public void ChangeState(ScreenState newState)
         {
+            Console.WriteLine($"Changing state to {newState}...");
+
             if (currentScreen != null)
             {
+                Console.WriteLine("Unloading current screen...");
                 currentScreen.Unload();
+                Console.WriteLine("Current screen unloaded.");
             }
 
             currentState = newState;
 
             switch (currentState)
             {
-                case ScreenState.Title:
-                    currentScreen = new TitleScreen();
-                    break;
                 case ScreenState.MainMenu:
                     currentScreen = new MainMenuScreen();
                     break;
-                case ScreenState.Classic:
-                    currentScreen = new GameplayScreen();
-                    break;
-                case ScreenState.Zen:
-                    currentScreen = new GameplayScreen();
-                    break;
-                case ScreenState.Action:
-                    currentScreen = new GameplayScreen();
-                    break;
-                case ScreenState.Puzzle:
+                case ScreenState.Gameplay:
                     currentScreen = new GameplayScreen();
                     break;
                 case ScreenState.Settings:
                     currentScreen = new SettingsScreen();
-                    break;
-                case ScreenState.Credits:
-                    currentScreen = new CreditsScreen();
                     break;
                 case ScreenState.Exit:
                     Raylib.CloseWindow();
@@ -80,7 +48,9 @@ namespace Bejeweled_2_Remastered.Screens
 
             if (currentScreen != null)
             {
+                Console.WriteLine("Loading new screen...");
                 currentScreen.Load();
+                Console.WriteLine("New screen loaded.");
             }
         }
 
