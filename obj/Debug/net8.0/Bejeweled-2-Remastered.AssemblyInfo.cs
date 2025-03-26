@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Bejeweled-2-Remastered")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e6cebf51fcc657169d0708fa44fd2e06badad88b")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ba2feb42e6a58ef1cdf036dac3428e390ca65482")]
 [assembly: System.Reflection.AssemblyProductAttribute("Bejeweled-2-Remastered")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Bejeweled-2-Remastered")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

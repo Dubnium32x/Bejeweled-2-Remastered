@@ -3,17 +3,17 @@ using System.Diagnostics;
 
 namespace Bejeweled_2_Remastered.jxl
 {
-    public static class JxlConverter
+    public static class JxlDecoder
     {
         public static string ConvertJxlToPng(string jxlFilePath)
         {
             string pngFilePath = jxlFilePath.Replace(".jxl", ".png");
 
-            // Use an external tool to convert JXL to PNG
+            // Use ffmpeg to convert JXL to PNG
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
-                FileName = "jxl2png", // Assuming jxl2png is installed and available in PATH
-                Arguments = $"{jxlFilePath} {pngFilePath}",
+                FileName = "ffmpeg",
+                Arguments = $"-i {jxlFilePath} {pngFilePath}",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,

@@ -1,6 +1,6 @@
 using System;
-using System.Numerics;
 using Raylib_cs;
+using System.Numerics;
 
 using Bejeweled_2_Remastered.jxl;
 using Bejeweled_2_Remastered.Screens;
@@ -20,8 +20,8 @@ namespace Bejeweled_2_Remastered.Screens
         public void Load()
         {
             Console.WriteLine("TitleScreen: Loading resources...");
-            string jxlFilePath = "../res/images/backdrops/backdrop_title_A.jxl";
-            string pngFilePath = JxlConverter.ConvertJxlToPng(jxlFilePath);
+            string jxlFilePath = "res/images/backdrops/backdrop_title_A.jxl";
+            string pngFilePath = JxlDecoder.ConvertJxlToPng(jxlFilePath);
             backdrop = Raylib.LoadTexture(pngFilePath);
             Console.WriteLine("TitleScreen: Resources loaded.");
         }
