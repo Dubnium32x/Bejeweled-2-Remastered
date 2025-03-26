@@ -9,7 +9,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="FFMpegCore" Version="5.2.0" />
     <PackageReference Include="Raylib-cs" Version="5.5.0" />
   </ItemGroup>
 

@@ -1,16 +1,11 @@
 {
   "version": 2,
-  "dgSpecHash": "0Ku1hv2Ly+E=",
+  "dgSpecHash": "JHbui4l6r2I=",
   "success": true,
   "projectFilePath": "/home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/Bejeweled-2-Remastered.csproj",
   "expectedPackageFiles": [
-    "/home/dylan/.nuget/packages/ffmpegcore/5.2.0/ffmpegcore.5.2.0.nupkg.sha512",
-    "/home/dylan/.nuget/packages/instances/3.0.1/instances.3.0.1.nupkg.sha512",
     "/home/dylan/.nuget/packages/raylib-cs/6.0.0/raylib-cs.6.0.0.nupkg.sha512",
-    "/home/dylan/.nuget/packages/system.io.pipelines/9.0.2/system.io.pipelines.9.0.2.nupkg.sha512",
-    "/home/dylan/.nuget/packages/system.numerics.vectors/4.5.0/system.numerics.vectors.4.5.0.nupkg.sha512",
-    "/home/dylan/.nuget/packages/system.text.encodings.web/9.0.2/system.text.encodings.web.9.0.2.nupkg.sha512",
-    "/home/dylan/.nuget/packages/system.text.json/9.0.2/system.text.json.9.0.2.nupkg.sha512"
+    "/home/dylan/.nuget/packages/system.numerics.vectors/4.5.0/system.numerics.vectors.4.5.0.nupkg.sha512"
   ],
   "logs": [
     {
