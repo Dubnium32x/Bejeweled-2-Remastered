@@ -1,3 +1,9 @@
+/home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/obj/Debug/net8.0/Bejeweled-2-Remastered.csproj.AssemblyReference.cache
+/home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/obj/Debug/net8.0/Bejeweled-2-Remastered.GeneratedMSBuildEditorConfig.editorconfig
+/home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/obj/Debug/net8.0/Bejeweled-2-Remastered.AssemblyInfoInputs.cache
+/home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/obj/Debug/net8.0/Bejeweled-2-Remastered.AssemblyInfo.cs
+/home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/obj/Debug/net8.0/Bejeweled-2-Remastered.csproj.CoreCompileInputs.cache
+/home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/obj/Debug/net8.0/Bejeweled-2-Remastered.sourcelink.json
 /home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/bin/Debug/net8.0/Bejeweled-2-Remastered
 /home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/bin/Debug/net8.0/Bejeweled-2-Remastered.deps.json
 /home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/bin/Debug/net8.0/Bejeweled-2-Remastered.runtimeconfig.json
@@ -9,12 +15,6 @@
 /home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/bin/Debug/net8.0/runtimes/osx-x64/native/libraylib.dylib
 /home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/bin/Debug/net8.0/runtimes/win-x64/native/raylib.dll
 /home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/bin/Debug/net8.0/runtimes/win-x86/native/raylib.dll
-/home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/obj/Debug/net8.0/Bejeweled-2-Remastered.csproj.AssemblyReference.cache
-/home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/obj/Debug/net8.0/Bejeweled-2-Remastered.GeneratedMSBuildEditorConfig.editorconfig
-/home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/obj/Debug/net8.0/Bejeweled-2-Remastered.AssemblyInfoInputs.cache
-/home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/obj/Debug/net8.0/Bejeweled-2-Remastered.AssemblyInfo.cs
-/home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/obj/Debug/net8.0/Bejeweled-2-Remastered.csproj.CoreCompileInputs.cache
-/home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/obj/Debug/net8.0/Bejeweled-2-Remastered.sourcelink.json
 /home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/obj/Debug/net8.0/Bejewele.88A13D79.Up2Date
 /home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/obj/Debug/net8.0/Bejeweled-2-Remastered.dll
 /home/dylan/Documents/raylib projects/Bejeweled-2-Remastered/obj/Debug/net8.0/refint/Bejeweled-2-Remastered.dll
