@@ -1,6 +1,9 @@
 ﻿using System;
 using Raylib_cs;
 
+using Bejeweled_2_Remastered.jxl;
+using Bejeweled_2_Remastered.Screens;
+
 namespace Bejeweled_2_Remastered
 {
     public class Program 
@@ -10,7 +13,7 @@ namespace Bejeweled_2_Remastered
             Console.WriteLine("Initializing Raylib window...");
 
             // Initialize the Raylib window
-            Raylib.InitWindow(800, 600, "Bejeweled 2 Clone");
+            Raylib.InitWindow(800, 600, "Bejeweled 2 Remastered");
             Raylib.SetTargetFPS(60);
 
             Console.WriteLine("Raylib window initialized.");

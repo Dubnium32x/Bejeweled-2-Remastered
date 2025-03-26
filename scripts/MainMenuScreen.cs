@@ -1,45 +1,44 @@
 using System;
 using Raylib_cs;
 
-namespace Bejeweled_2_Remastered
+using Bejeweled_2_Remastered.jxl;
+using Bejeweled_2_Remastered.Screens;
+
+namespace Bejeweled_2_Remastered.Screens
 {
-    public class MainMenuScreen : IScreen
+    public class GameplayScreen : IScreen
     {
         private ScreenManager screenManager;
 
-        public MainMenuScreen(ScreenManager screenManager)
+        public GameplayScreen(ScreenManager screenManager)
         {
             this.screenManager = screenManager;
         }
 
         public void Load()
         {
-            Console.WriteLine("MainMenuScreen: Loading resources...");
-            // Load resources for the main menu
-            Console.WriteLine("MainMenuScreen: Resources loaded.");
+            Console.WriteLine("GameplayScreen: Loading resources...");
+            // Load resources for gameplay
+            Console.WriteLine("GameplayScreen: Resources loaded.");
         }
 
         public void Unload()
         {
-            Console.WriteLine("MainMenuScreen: Unloading resources...");
-            // Unload resources for the main menu
-            Console.WriteLine("MainMenuScreen: Resources unloaded.");
+            Console.WriteLine("GameplayScreen: Unloading resources...");
+            // Unload resources for gameplay
+            Console.WriteLine("GameplayScreen: Resources unloaded.");
         }
 
         public void Update()
         {
-            if (Raylib.IsKeyPressed(KeyboardKey.Enter))
-            {
-                screenManager.ChangeState(ScreenState.Gameplay);
-            }
+            // Update gameplay logic
         }
 
         public void Draw()
         {
             Raylib.BeginDrawing();
             Raylib.ClearBackground(Color.White);
-            Raylib.DrawText("Main Menu", 350, 200, 40, Color.Black);
-            Raylib.DrawText("Press ENTER to Start", 300, 300, 20, Color.Gray);
+            // Draw gameplay elements
             Raylib.EndDrawing();
         }
     }

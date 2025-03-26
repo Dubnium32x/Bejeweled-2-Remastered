@@ -1,4 +1,4 @@
-namespace Bejeweled_2_Remastered
+namespace Bejeweled_2_Remastered.Screens
 {
     public enum ScreenState
     {

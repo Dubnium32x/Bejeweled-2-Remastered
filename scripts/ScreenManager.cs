@@ -1,14 +1,14 @@
 using System;
 using Raylib_cs;
+
 using Bejeweled_2_Remastered.Screens;
-using Bejeweled_2_Remastered.jxl;
 
 namespace Bejeweled_2_Remastered
 {
     public class ScreenManager
     {
         private ScreenState currentState;
-        private IScreen currentScreen;
+        private IScreen currentScreen = null; // Initialize to null
 
         public ScreenManager()
         {
@@ -33,13 +33,13 @@ namespace Bejeweled_2_Remastered
             switch (currentState)
             {
                 case ScreenState.MainMenu:
-                    currentScreen = new MainMenuScreen();
+                    currentScreen = new MainMenuScreen(this);
                     break;
                 case ScreenState.Gameplay:
-                    currentScreen = new GameplayScreen();
+                    currentScreen = new GameplayScreen(this);
                     break;
                 case ScreenState.Settings:
-                    currentScreen = new SettingsScreen();
+                    currentScreen = new SettingsScreen(this);
                     break;
                 case ScreenState.Exit:
                     Raylib.CloseWindow();
