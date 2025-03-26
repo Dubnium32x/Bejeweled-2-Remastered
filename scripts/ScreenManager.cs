@@ -13,7 +13,7 @@ namespace Bejeweled_2_Remastered
         public ScreenManager()
         {
             Console.WriteLine("Initializing ScreenManager...");
-            ChangeState(ScreenState.MainMenu);
+            ChangeState(ScreenState.TitleScreen);
             Console.WriteLine("ScreenManager initialized.");
         }
 
@@ -43,6 +43,9 @@ namespace Bejeweled_2_Remastered
                     break;
                 case ScreenState.Exit:
                     Raylib.CloseWindow();
+                    break;
+                case ScreenState.TitleScreen:
+                    currentScreen = new TitleScreen(this);
                     break;
             }
 

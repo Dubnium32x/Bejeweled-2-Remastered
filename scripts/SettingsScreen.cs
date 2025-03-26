@@ -6,10 +6,12 @@ namespace Bejeweled_2_Remastered.Screens
     public class SettingsScreen : IScreen
     {
         private ScreenManager screenManager;
+        private Resolution currentResolution;
 
         public SettingsScreen(ScreenManager screenManager)
         {
             this.screenManager = screenManager;
+            this.currentResolution = Resolution.R1280x720; // Default resolution
         }
 
         public void Load()
@@ -28,15 +30,61 @@ namespace Bejeweled_2_Remastered.Screens
 
         public void Update()
         {
-            // Update settings logic
+            if (Raylib.IsKeyPressed(KeyboardKey.One))
+            {
+                SetResolution(Resolution.R1280x720);
+            }
+            else if (Raylib.IsKeyPressed(KeyboardKey.Two))
+            {
+                SetResolution(Resolution.R1920x1080);
+            }
+            else if (Raylib.IsKeyPressed(KeyboardKey.Three))
+            {
+                SetResolution(Resolution.R2560x1440);
+            }
+            else if (Raylib.IsKeyPressed(KeyboardKey.Four))
+            {
+                SetResolution(Resolution.R3840x2160);
+            }
+
+            if (Raylib.IsKeyPressed(KeyboardKey.Backspace))
+            {
+                screenManager.ChangeState(ScreenState.MainMenu);
+            }
         }
 
         public void Draw()
         {
             Raylib.BeginDrawing();
-            Raylib.ClearBackground(Color.White);
-            // Draw settings elements
+            Raylib.ClearBackground(Color.White); // Use Color.White instead of RAYWHITE
+            Raylib.DrawText("Settings", 350, 200, 40, Color.Black);
+            Raylib.DrawText("Press 1 for 1280x720", 300, 300, 20, Color.Gray);
+            Raylib.DrawText("Press 2 for 1920x1080", 300, 330, 20, Color.Gray);
+            Raylib.DrawText("Press 3 for 2560x1440", 300, 360, 20, Color.Gray);
+            Raylib.DrawText("Press 4 for 3840x2160", 300, 390, 20, Color.Gray);
+            Raylib.DrawText("Press BACKSPACE to return to Main Menu", 300, 450, 20, Color.Gray);
             Raylib.EndDrawing();
+        }
+
+        private void SetResolution(Resolution resolution)
+        {
+            this.currentResolution = resolution;
+            switch (resolution)
+            {
+                case Resolution.R1280x720:
+                    Raylib.SetWindowSize(1280, 720);
+                    break;
+                case Resolution.R1920x1080:
+                    Raylib.SetWindowSize(1920, 1080);
+                    break;
+                case Resolution.R2560x1440:
+                    Raylib.SetWindowSize(2560, 1440);
+                    break;
+                case Resolution.R3840x2160:
+                    Raylib.SetWindowSize(3840, 2160);
+                    break;
+            }
+            Console.WriteLine($"Resolution set to {resolution}");
         }
     }
 }

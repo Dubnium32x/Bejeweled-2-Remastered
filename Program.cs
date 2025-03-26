@@ -13,7 +13,7 @@ namespace Bejeweled_2_Remastered
             Console.WriteLine("Initializing Raylib window...");
 
             // Initialize the Raylib window
-            Raylib.InitWindow(800, 600, "Bejeweled 2 Remastered");
+            Raylib.InitWindow(1280, 720, "Bejeweled 2 Remastered");
             Raylib.SetTargetFPS(60);
 
             Console.WriteLine("Raylib window initialized.");

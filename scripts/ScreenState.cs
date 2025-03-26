@@ -5,7 +5,8 @@ namespace Bejeweled_2_Remastered.Screens
         MainMenu,
         Gameplay,
         Settings,
-        Exit
+        Exit,
+        TitleScreen
     }
 
     public enum GameplayState
