@@ -10,6 +10,9 @@ namespace Bejeweled_2_Remastered
     public class Program 
     {
         public static bool isLoading;
+        public static float loadingProgress;
+        public static bool isLoadingComplete;
+        public static bool isLoadingError;
         public static Vector2 screenSize = new Vector2(1280, 720);
         static void Main(string[] args)
         {
@@ -19,6 +22,12 @@ namespace Bejeweled_2_Remastered
             Raylib.InitWindow((int)screenSize.X, (int)screenSize.Y, "Bejeweled 2 Remastered");
             Raylib.SetTargetFPS(60);
 
+            while(isLoading)
+            {
+                // Simulate loading progress
+                Console.WriteLine("Loading...");
+            }
+
             Console.WriteLine("Raylib window initialized.");
 
             ScreenManager screenManager = new ScreenManager();
@@ -26,10 +35,19 @@ namespace Bejeweled_2_Remastered
 
             Console.WriteLine("Entering main game loop...");
 
+            // Check if the window is ready
+            while (!Raylib.IsWindowReady())
+            {
+                Console.WriteLine("Waiting for window to be ready...");
+            }
+
             // Main game loop
             while (!Raylib.WindowShouldClose())
             {
-                isLoading = false;
+                if (!Raylib.IsWindowReady())
+                {
+                    Console.WriteLine("Window is not ready yet.");
+                }
                 screenManager.Update();
                 screenManager.Draw();
             }

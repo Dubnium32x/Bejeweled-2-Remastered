@@ -8,6 +8,7 @@ namespace Bejeweled_2_Remastered.jxl
     {
         public static string ConvertJxlToPng(string jxlFilePath)
         {
+            Program.isLoading = true;
             string pngFilePath = jxlFilePath.Replace(".jxl", ".png");
 
             // Debug: Print the paths for conversion
@@ -53,7 +54,8 @@ namespace Bejeweled_2_Remastered.jxl
                 Console.WriteLine($"Error during conversion: {ex.Message}");
                 throw;
             }
-
+            
+            Program.isLoading = false;
             return pngFilePath;
         }
     }

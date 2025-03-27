@@ -71,7 +71,7 @@ namespace Bejeweled_2_Remastered
 
         public void Draw()
         {
-            if (currentScreen != null)
+            if (currentScreen != null && Program.isLoading == false)
             {
                 currentScreen.Draw();
             }
