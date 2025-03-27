@@ -32,15 +32,22 @@ namespace Bejeweled_2_Remastered.Screens
 
         // Define sparkle effect properties
         private bool isSparkling = false;
-        private Vector2 planetPosition;
+
         private Vector2 sparklePosition;
-        public Vector2 titleLogoPosition;
         private float sparkleDuration = 0.8f; // Duration of sparkle effect in seconds
         private float sparkleTimer = 0.0f;
         private float sparklePauseDuration = 1.7f; // Duration of pause between sparkles
 
+        // Define planet properties
+        private Vector2 planetPosition;
+        
+        // Define title logo properties
+        public Vector2 titleLogoPosition;
+        private Vector2 logoDest;
         private float titleLogoDuration = 1.0f;
         private float titleLogoTimer = 0.0f;
+        private float titlePauseTimer = 0.0f;
+        private float firstTitlePauseDuration = 2.0f; // Duration of the first pause before the logo moves
 
         public TitleScreen(ScreenManager screenManager)
         {
@@ -52,6 +59,7 @@ namespace Bejeweled_2_Remastered.Screens
 
         public void Load()
         {
+            Program.isLoading = true;
             // Debug: Print the current working directory
             string currentDirectory = Directory.GetCurrentDirectory();
             Console.WriteLine($"Current Directory: {currentDirectory}");
@@ -94,6 +102,7 @@ namespace Bejeweled_2_Remastered.Screens
 
         private void LoadPlanet()
         {
+            Program.isLoading = true;
             string jxlFilePath1 = "res/images/planet1_frame_0001.jxl";
             string jxlFilePath2 = "res/images/planet1__frame_0001.jxl";
             try
@@ -134,6 +143,7 @@ namespace Bejeweled_2_Remastered.Screens
 
         private void LoadSparkleEffect()
         {
+            Program.isLoading = true;
             string jxlFilePath1 = "res/images/bigstar_frame_0001.jxl";
             string jxlFilePath2 = "res/images/bigstar_frame_0002.jxl";
             try
@@ -181,6 +191,7 @@ namespace Bejeweled_2_Remastered.Screens
 
         public void LoadTitleLogo()
         {
+            Program.isLoading = true;
             bool isLoaded = false;
             // Load the title logo texture
             string jxlFilePath1 = "res/images/title_logo.jxl";
@@ -229,7 +240,6 @@ namespace Bejeweled_2_Remastered.Screens
             {
                 Console.WriteLine("Failed to load title logo.");
             }
-
         }
 
         public void Unload()
@@ -282,18 +292,29 @@ namespace Bejeweled_2_Remastered.Screens
 
         private void InitializeTitleLogo()
         {
-            titleLogoPosition = new Vector2((Raylib.GetScreenWidth() - titleLogoTextureWithAlpha.Width) / 2, (Raylib.GetScreenHeight()));
+            float logoScale = Math.Min(Raylib.GetScreenWidth() / 1280.0f, Raylib.GetScreenHeight() / 720.0f) + 0.5f;
+            float initialXPercent = 0.5f; // Center horizontally (0.5 = 50%)
+            float initialYPercent = 1.1f;  // Start below the screen (1.1 = 110%)
+
+            titleLogoPosition = new Vector2(
+                (Raylib.GetScreenWidth() * initialXPercent) - ((titleLogoTextureWithAlpha.Width * logoScale) / 2),
+                Raylib.GetScreenHeight() * initialYPercent
+            );
         }
 
         private void UpdateTitleLogo()
         {
             bool clickedPlay = false;
-            // Update title logo position to move upwards
-            if (File.Exists("res/images/title_logo.png"))
+            titlePauseTimer += Raylib.GetFrameTime();
+            if (titlePauseTimer > firstTitlePauseDuration)
             {
                 float deltaTime = Raylib.GetFrameTime();
-                Vector2 logoDest = new Vector2((Raylib.GetScreenWidth() - titleLogoTextureWithAlpha.Width) / 2,
-                    (Raylib.GetScreenHeight() - titleLogoTextureWithAlpha.Height) + (Raylib.GetScreenHeight() / 4));
+                float targetXPercent = 0.5f; // Center horizontally
+                float targetYPercent = 0.05f; // 5% from the top
+
+                Vector2 logoDest = new Vector2(
+                    (Raylib.GetScreenWidth() * targetXPercent) - (titleLogoTextureWithAlpha.Width / 2),
+                    (Raylib.GetScreenHeight() * targetYPercent) + (100.0f * ((Raylib.GetScreenWidth() / 1280f) + (Raylib.GetScreenHeight() / 720f)) / 2));
                 titleLogoTimer += deltaTime;
 
                 if (titleLogoTimer >= titleLogoDuration)
@@ -366,9 +387,10 @@ namespace Bejeweled_2_Remastered.Screens
         }
         private void DrawPlanet()
         {
-            float scale = 0.5f;
+            float scale = 0.5f * ((Raylib.GetScreenWidth() / 1280f) + (Raylib.GetScreenHeight() / 720f)) / 2;
 
             planetPosition.Y -= (starSpeed / 2) * Raylib.GetFrameTime();
+            planetPosition.X = Raylib.GetScreenWidth();
 
             Rectangle sourceRect = new Rectangle(0, 0, planetTextureWithAlpha.Width, planetTextureWithAlpha.Height);
             Rectangle destRect = new Rectangle(planetPosition.X, planetPosition.Y, planetTextureWithAlpha.Width * scale, planetTextureWithAlpha.Height * scale);
@@ -378,7 +400,7 @@ namespace Bejeweled_2_Remastered.Screens
 
         private void DrawTitleLogo()
         {
-            float scale = 0.25f;
+            float scale = 0.25f * ((Raylib.GetScreenWidth() / 1280f) + (Raylib.GetScreenHeight() / 720f)) / 2;
             Rectangle sourceRect = new Rectangle(0, 0, titleLogoTextureWithAlpha.Width, titleLogoTextureWithAlpha.Height);
             Rectangle destRect = new Rectangle(titleLogoPosition.X, titleLogoPosition.Y, titleLogoTextureWithAlpha.Width * scale, titleLogoTextureWithAlpha.Height * scale);
             Vector2 origin = new Vector2((titleLogoTextureWithAlpha.Width * scale) / 2, (titleLogoTextureWithAlpha.Height * scale) / 2);

@@ -11,7 +11,7 @@ namespace Bejeweled_2_Remastered.Screens
         public SettingsScreen(ScreenManager screenManager)
         {
             this.screenManager = screenManager;
-            this.currentResolution = Resolution.R1280x720; // Default resolution
+            this.currentResolution = Resolution.R640x360; // Default resolution
         }
 
         public void Load()
@@ -46,6 +46,15 @@ namespace Bejeweled_2_Remastered.Screens
             {
                 SetResolution(Resolution.R3840x2160);
             }
+            else if (Raylib.IsKeyPressed(KeyboardKey.Zero))
+            {
+                SetResolution(Resolution.R1280x720); // Reset to default resolution
+            }
+            else if (Raylib.IsKeyPressed(KeyboardKey.Five))
+            {
+                SetResolution(Resolution.R640x360); // Example for a custom resolution
+            }
+            else
 
             if (Raylib.IsKeyPressed(KeyboardKey.Backspace))
             {
@@ -82,6 +91,9 @@ namespace Bejeweled_2_Remastered.Screens
                     break;
                 case Resolution.R3840x2160:
                     Raylib.SetWindowSize(3840, 2160);
+                    break;
+                case Resolution.R640x360:
+                    Raylib.SetWindowSize(640, 360);
                     break;
             }
             Console.WriteLine($"Resolution set to {resolution}");

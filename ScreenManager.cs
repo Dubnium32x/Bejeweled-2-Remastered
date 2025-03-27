@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using Raylib_cs;
 
 using Bejeweled_2_Remastered.Screens;
@@ -63,6 +64,9 @@ namespace Bejeweled_2_Remastered
             {
                 currentScreen.Update();
             }
+
+            // Handle screen resolution
+
         }
 
         public void Draw()
