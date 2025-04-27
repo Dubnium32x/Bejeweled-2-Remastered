@@ -1,0 +1,26 @@
+{
+    "classic": [
+        { "name": "Ace",    "score": 2000, "level": 5 },
+        { "name": "John",   "score": 1900, "level": 4 },
+        { "name": "Eric",   "score": 1800, "level": 6 },
+        { "name": "Brian",  "score": 1700, "level": 3 },
+        { "name": "Ben",    "score": 1600, "level": 2 },
+        { "name": "Hans",   "score": 1000, "level": 7 },
+        { "name": "Jeff",   "score": 900,  "level": 2 },
+        { "name": "Walter", "score": 800,  "level": 4 },
+        { "name": "Dave",   "score": 700,  "level": 3 },
+        { "name": "Nick",   "score": 600,  "level": 1 }
+    ],
+    "action": [
+        { "name": "Josh",    "score": 2000, "level": 8 },
+        { "name": "Shawn",   "score": 1900, "level": 7 },
+        { "name": "Jason",   "score": 1800, "level": 6 },
+        { "name": "Tysen",   "score": 1700, "level": 5 },
+        { "name": "Chad",    "score": 1600, "level": 4 },
+        { "name": "Don",     "score": 1000, "level": 3 },
+        { "name": "Brenna",  "score": 900,  "level": 2 },
+        { "name": "Kathy",   "score": 800,  "level": 5 },
+        { "name": "Sukhbir", "score": 700,  "level": 3 },
+        { "name": "J.R.",    "score": 600,  "level": 1 }
+    ]
+}
