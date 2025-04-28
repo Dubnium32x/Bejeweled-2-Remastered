@@ -4,122 +4,119 @@ import raylib;
 
 import std.stdio;
 import std.file;
-import std.process;
+import std.json;
 import std.path;
+import std.process;
+import std.string;
 
-string optionsFilePath = "options.ini";
+import world.game_manager;
 
-enum AudioTypes {
+// ---- ENUMS ----
+enum AudioType {
     MUSIC,
     SFX,
-    AMBIENT,
-    VOX
+    VOX,
+    AMBIENCE
+}
+
+enum AudioState {
+    PLAYING,
+    PAUSED,
+    STOPPED
+}
+
+enum AudioLoop {
+    ONCE,
+    LOOP
 }
 
 enum AudioVolumes {
     MUSIC_VOLUME = 0.5,
     SFX_VOLUME = 0.5,
-    AMBIENT_VOLUME = 0.5,
-    VOX_VOLUME = 0.5
+    VOX_VOLUME = 0.5,
+    AMBIENCE_VOLUME = 0.5
 }
 
-// implement class
+Music musicTrack;
+
+// Remove individual soundEffect1..8 and use arrays
+Sound[8] soundEffects;
+bool[8] soundInUse;
+
+// ---- CLASS ----
 class AudioManager {
-    private static AudioManager instance;
-
-    // define variables
-    private float musicVolume = AudioVolumes.MUSIC_VOLUME;
-    private float sfxVolume = AudioVolumes.SFX_VOLUME;
-    private float ambientVolume = AudioVolumes.AMBIENT_VOLUME;
-    private float voxVolume = AudioVolumes.VOX_VOLUME;
-
-    // play audio of a specific type
-    void playAudio(AudioTypes type) {
-        switch (type) {
-            case AudioTypes.MUSIC:
-                // Play music with volume
-                SetMusicVolume(musicVolume);
-                break;
-            case AudioTypes.SFX:
-                // Play sound effect with volume
-                SetSoundVolume(sfxVolume);
-                break;
-            case AudioTypes.AMBIENT:
-                // Play ambient sound with volume
-                SetSoundVolume(ambientVolume);
-                break;
-            case AudioTypes.VOX:
-                // Play voice sound with volume
-                SetSoundVolume(voxVolume);
-                break;
+    AudioType audioType;
+    AudioState audioState;
+    AudioLoop audioLoop;
+    // Add volume fields as class members
+    float musicVolume;
+    float sfxVolume;
+    float voxVolume;
+    float ambienceVolume;
+    
+    // Find the next available sound slot
+    int nextAvailableSoundEffect() {
+        foreach (int i, used; soundInUse) {
+            if (!used) return i;
         }
+
+        // If all are in use, return null or throw an error
+        throw new Exception("No available sound effect slots.");
     }
 
-    // stop audio of a specific type
-    void stopAudio(AudioTypes type) {
-
-
-        switch (type) {
-            case AudioTypes.MUSIC:
-
-                break;
-            case AudioTypes.SFX:
-
-                break;
-            case AudioTypes.AMBIENT:
-
-                break;
-            case AudioTypes.VOX:
-
-                break;
-        }
+    // Mark a slot as used
+    void setSoundEffect(int index, Sound sfx) {
+        soundEffects[index] = sfx;
+        soundInUse[index] = true;
     }
 
-    // init audio settings
-    void initAudioSettings() {
-        // Load options from file if it exists
-        if (fileExists(optionsFilePath)) {
-            loadOptions();
-        } else {
-            // Set default values if options file does not exist
-            musicVolume = AudioVolumes.MUSIC_VOLUME;
-            sfxVolume = AudioVolumes.SFX_VOLUME;
-            ambientVolume = AudioVolumes.AMBIENT_VOLUME;
-            voxVolume = AudioVolumes.VOX_VOLUME;
-        }
+    // Mark a slot as unused (e.g., after unloading)
+    void freeSoundEffect(int index) {
+        UnloadSound(soundEffects[index]);
+        soundInUse[index] = false;
     }
 
-    // load options from file
-    void loadOptions() {
-        if (!fileExists(optionsFilePath)) {
-            writeln("Options file not found, creating default options.ini");
-            saveOptions(); // Create default options file
-            return;
-        }
-
-        auto optionsFile = File(optionsFilePath, "r");
-        string[] lines = optionsFile.byLine.array();
-        foreach (line; lines) {
-            if (line.startsWith("musicVolume =")) {
-                musicVolume = to!float(line[13..$]);
-            } else if (line.startsWith("sfxVolume =")) {
-                sfxVolume = to!float(line[11..$]);
-            } else if (line.startsWith("ambientVolume =")) {
-                ambientVolume = to!float(line[15..$]);
-            } else if (line.startsWith("voxVolume =")) {
-                voxVolume = to!float(line[11..$]);
-            }
-        }
-        optionsFile.close();
+    this() {
+        // Initialize volumes with default values
+        musicVolume = AudioVolumes.MUSIC_VOLUME;
+        sfxVolume = AudioVolumes.SFX_VOLUME;
+        voxVolume = AudioVolumes.VOX_VOLUME;
+        ambienceVolume = AudioVolumes.AMBIENCE_VOLUME;
+        // Initialize all slots as unused
+        soundInUse[] = false;
     }
 
-    // save options to file
-    void saveOptions() {
-        auto optionsFile = File(optionsFilePath, "w");
-        optionsFile.writeln("musicVolume = ", musicVolume);
-        optionsFile.writeln("sfxVolume = ", sfxVolume);
-        optionsFile.writeln("ambientVolume = ", ambientVolume);
-        optionsFile.writeln("voxVolume = ", voxVolume);
-        optionsFile.close();
+    /*
+    ---- NOTE ----
+    This part of the code is responsible for setting the volume of different audio types.
+    I wish I knew what to do about the `auto` keyword here, but it seems to be a placeholder for the actual type.
+    Whether that be Music, Sound, or any other audio type. Doesn't seem to be a way to specify that in D.
+    */
+    void setVolume(AudioType audioType, void* sfx, float volume) {
+        switch (audioType) {
+            case AudioType.MUSIC:
+                musicVolume = volume;
+                SetMusicVolume(musicTrack, musicVolume);
+                break;
+            case AudioType.SFX:
+                sfxVolume = volume;
+                // Cast sfx to Sound* and set its volume
+                if (sfx !is null) {
+                    SetSoundVolume(*cast(Sound*)sfx, sfxVolume);
+                }
+                break;
+            case AudioType.VOX:
+                voxVolume = volume;
+                // Assuming there's a function to set voice volume
+                SetSoundVolume(*cast(Sound*)sfx, voxVolume);
+                break;
+            case AudioType.AMBIENCE:
+                ambienceVolume = volume;
+                // Assuming there's a function to set ambience volume
+                SetSoundVolume(*cast(Sound*)sfx, ambienceVolume);
+                break;
+            default:
+                throw new Exception("Invalid AudioType specified.");
+        }
     }
 }

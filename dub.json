@@ -4,9 +4,12 @@
 	],
 	"copyright": "Copyright © 2025, Dylan",
 	"dependencies": {
-		"json": "~>0.3.0",
 		"raylib-d": "~>5.5.1"
 	},
+	"libs": [ "raylib" ],
+    "lflags-posix" : ["-L."],
+    "lflags-osx" : ["-rpath", "@executable_path/"],
+    "lflags-linux" : ["-rpath=$$ORIGIN"],
 	"description": "A remake of Bejeweled 2 using Raylib and the D programming language.",
 	"license": "proprietary",
 	"name": "bejeweled-2-remastered"
