@@ -14,6 +14,9 @@ import std.array;
 import world.display_manager;
 import world.audio_manager;
 
+import screens.init_screen;
+import screens.title_screen;
+
 
 // ---- ENUMS ----
 enum GameState {
@@ -29,6 +32,17 @@ enum GameplayState {
     GAMEOVER
 }
 
+enum GameplayType {
+    CLASSIC,
+    ACTION,
+    PUZZLE,
+    ENDLESS,
+    TWILIGHT,
+    HYPER,
+    COGNITO,
+    FINITY
+}
+
 enum TitleState {
     LOGO,
     MAINMENU
@@ -39,7 +53,7 @@ enum TitleState {
 // display settings 
 public bool isFullscreen = false;
 public bool isVSyncEnabled = true;
-public int[] resolution = [800, 600]; // Default resolution
+public int[] resolution = [1280, 720]; // Default resolution
 
 // in-game settings
 public int score = 0;
@@ -158,6 +172,10 @@ class GameManager : World {
             highScore = 0;
             isPaused = false;
         }
+
+        // Apply display settings
+        displayManager.setResolution(Resolution.RES_1280x720);
+        displayManager.setFrameRate(60);
     }
 
     void update() {
@@ -165,7 +183,7 @@ class GameManager : World {
         switch (gameState) {
             case GameState.INIT:
                 // Initialization logic if needed
-                gameState = GameState.TITLE;
+                gameState = GameState.INIT;
                 break;
             case GameState.TITLE:
                 // Update title state
@@ -200,14 +218,17 @@ class GameManager : World {
         switch (gameState) {
             case GameState.INIT:
                 // Render initialization screen if needed
+                
                 break;
             case GameState.TITLE:
                 switch (titleState) {
                     case TitleState.LOGO:
                         // Render logo screen
+                        // writeln("Rendering logo state...");
                         break;
                     case TitleState.MAINMENU:
                         // Render main menu screen
+                        // writeln("Rendering main menu state...");
                         break;
                     default:
                         writefln("Not able to render for title state: %s", titleState);
@@ -217,6 +238,7 @@ class GameManager : World {
             case GameState.GAMEPLAY:
                 if (!isPaused) {
                     // Render gameplay elements
+                    // writeln("Rendering gameplay state...");
                 }
                 break;
             case GameState.GAMEOVER:

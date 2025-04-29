@@ -31,6 +31,10 @@ class DisplayManager {
         return instance;
     }
 
+    this() {
+        // Constructor should not assign to instance to avoid recursion
+    }
+
     Resolution resolution;
     bool isFullscreen = false;
     int frameRate = 60;

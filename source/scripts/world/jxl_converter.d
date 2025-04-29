@@ -18,3 +18,4 @@ string jxlToPng(string jxlPath, string pngPath = "")
 
     return pngPath;
 }
+

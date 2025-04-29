@@ -39,10 +39,6 @@ enum AudioVolumes {
 
 Music musicTrack;
 
-// Remove individual soundEffect1..8 and use arrays
-Sound[8] soundEffects;
-bool[8] soundInUse;
-
 // ---- CLASS ----
 class AudioManager {
     AudioType audioType;
@@ -53,7 +49,17 @@ class AudioManager {
     float sfxVolume;
     float voxVolume;
     float ambienceVolume;
-    
+    Sound[8] soundEffects;
+    bool[8] soundInUse;
+
+    static AudioManager instance;
+    static AudioManager getInstance() {
+        if (instance is null) {
+            instance = new AudioManager();
+        }
+        return instance;
+    }
+
     // Find the next available sound slot
     int nextAvailableSoundEffect() {
         foreach (int i, used; soundInUse) {
