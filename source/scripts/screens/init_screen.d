@@ -12,7 +12,6 @@ import world.jxl_converter;
 import world.display_manager;
 import world.audio_manager;
 import world.game_manager;
-import image_paths;
 
 // ---- DATA POOL ----
 public Texture[] textures;

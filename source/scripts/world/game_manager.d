@@ -40,7 +40,8 @@ enum GameplayType {
     TWILIGHT,
     HYPER,
     COGNITO,
-    FINITY
+    FINITY,
+    ORIGINAL
 }
 
 enum TitleState {
