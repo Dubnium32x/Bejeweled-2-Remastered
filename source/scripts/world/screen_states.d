@@ -1,0 +1,43 @@
+module world.screen_states;
+
+// ---- ENUMS ----
+enum ScreenState {
+    INIT,
+    TITLE,
+    GAMEPLAY,
+    GAMEOVER,
+    SETTINGS,
+    CREDITS
+}
+
+enum GameplayState {
+    IN_MENU,
+    PLAYING,
+    PAUSED,
+    GAMEOVER
+}
+
+enum TitleState {
+    LOGO,
+    MAINMENU,
+    OPTIONS
+}
+
+enum SettingsState {
+    VIDEO,
+    AUDIO,
+    CONTROLS,
+    GAMEPLAY
+}
+
+enum GameplayMode {
+    CLASSIC,
+    ACTION,
+    PUZZLE,
+    ENDLESS,
+    TWILIGHT,
+    HYPER,
+    COGNITO,
+    FINITY,
+    ORIGINAL
+}

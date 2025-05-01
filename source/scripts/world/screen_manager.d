@@ -1,0 +1,187 @@
+module world.screen_manager;
+
+import raylib;
+
+import std.stdio;
+import std.file;
+import std.path;
+import std.array;
+import std.algorithm;
+import std.traits : EnumMembers;
+
+import world.screen_states;
+import world.screen_settings;
+
+// ---- SCREEN INTERFACE ----
+interface IScreen {
+    void initialize();
+    void update(float deltaTime);
+    void draw();
+    void unload();
+}
+
+// ---- GLOBAL VARIABLES ----
+public ScreenSettings screenSettings;
+public GameplayState currentGameplayState = GameplayState.IN_MENU;
+
+// ---- CLASS ----
+class ScreenManager : IScreen {
+    // Singleton instance
+    static ScreenManager instance;
+
+    // Current screen and state
+    private IScreen currentScreen;
+    private ScreenState _currentState = ScreenState.INIT;
+    
+    // Screen registry - maps screen states to screen objects
+    private IScreen[ScreenState] screenRegistry;
+    
+    this() {
+        screenSettings = new ScreenSettings();
+        // Initialize the screen registry with null values
+        foreach(state; [EnumMembers!ScreenState]) {
+            screenRegistry[state] = null;
+        }
+    }
+
+    // Static method to get the singleton instance
+    static ScreenManager getInstance() {
+        if (instance is null) {
+            synchronized {
+                if (instance is null) {
+                    instance = new ScreenManager();
+                }
+            }
+        }
+        return instance;
+    }
+    
+    // Getter for current state
+    ScreenState currentState() {
+        return _currentState;
+    }
+
+    void initialize() {
+        // Register screens (this would be done by the game at startup)
+        // Example: registerScreen(ScreenState.INIT, new InitScreen());
+        
+        // Start with the INIT state
+        changeState(ScreenState.INIT);
+    }
+    
+    // Register a screen implementation for a specific state
+    void registerScreen(ScreenState state, IScreen screen) {
+        screenRegistry[state] = screen;
+        writeln("ScreenManager: Registered screen for state: ", state);
+    }
+    
+    // Change the current state and activate corresponding screen
+    void changeState(ScreenState newState) {
+        // First unload the current screen if it exists
+        if (currentScreen !is null) {
+            currentScreen.unload();
+            currentScreen = null;
+        }
+        
+        // Update the state
+        _currentState = newState;
+        
+        // Activate the new screen if it's registered
+        if (newState in screenRegistry && screenRegistry[newState] !is null) {
+            currentScreen = screenRegistry[newState];
+            currentScreen.initialize();
+            writeln("ScreenManager: Changed to state: ", newState);
+        } else {
+            writeln("ScreenManager: Warning - No screen registered for state: ", newState);
+        }
+    }
+    
+    // Legacy method for backward compatibility
+    void setScreen(IScreen newScreen) {
+        if (currentScreen !is null) {
+            currentScreen.unload();
+        }
+        
+        currentScreen = newScreen;
+        
+        if (currentScreen !is null) {
+            currentScreen.initialize();
+            writeln("ScreenManager: Switched to new screen: ", newScreen);
+        }
+        else {
+            writeln("ScreenManager: Attempted to set null screen.");
+        }
+    }
+
+    void update(float deltaTime) {
+        if (currentScreen !is null) {
+            currentScreen.update(deltaTime);
+        }
+    }
+
+    void draw() {
+        if (currentScreen !is null) {
+            currentScreen.draw();
+        } else {
+            // Fallback rendering when no screen is active
+            DrawText("Loading...", GetScreenWidth() / 2 - 50, GetScreenHeight() / 2, 20, Colors.DARKGRAY);
+        }
+    }
+
+    void unload() {
+        if (currentScreen !is null) {
+            currentScreen.unload();
+            currentScreen = null;
+        }
+        
+        // Clear the screen registry
+        foreach(state; [EnumMembers!ScreenState]) {
+            screenRegistry[state] = null;
+        }
+    }
+    
+    // Get the active screen instance
+    IScreen getActiveScreen() {
+        return currentScreen;
+    }
+    
+    // Check if a specific state is active
+    bool isState(ScreenState state) {
+        return _currentState == state;
+    }
+}
+
+// ---- PAUSE MENU ----
+class PauseMenu : IScreen {
+    // Singleton instance
+    static PauseMenu instance;
+
+    this() {
+        instance = this;
+    }
+
+    void initialize() {
+        // Initialize pause menu resources (textures, sounds, etc.)
+        writeln("Pause Menu initialized.");
+    }
+
+    void update(float deltaTime) {
+        // Handle input and update pause menu logic
+        if (IsKeyPressed(KeyboardKey.KEY_ESCAPE)) {
+            // Resume game if escape is pressed
+            ScreenManager.getInstance().changeState(ScreenState.GAMEPLAY);
+            currentGameplayState = GameplayState.PLAYING;
+        }
+    }
+
+    void draw() {
+        // Draw pause menu UI elements
+        DrawText("Paused", 400, 200, 40, Colors.RED);
+        DrawText("Press ESC to resume", 300, 300, 20, Colors.WHITE);
+    }
+
+    void unload() {
+        // Unload pause menu resources
+        writeln("Pause Menu unloaded.");
+    }
+}

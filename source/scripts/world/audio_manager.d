@@ -8,8 +8,10 @@ import std.json;
 import std.path;
 import std.process;
 import std.string;
+import std.algorithm;
 
-import world.game_manager;
+import world.audio_settings;
+import world.memory_manager;
 
 // ---- ENUMS ----
 enum AudioType {
@@ -19,110 +21,223 @@ enum AudioType {
     AMBIENCE
 }
 
-enum AudioState {
-    PLAYING,
-    PAUSED,
-    STOPPED
-}
-
-enum AudioLoop {
-    ONCE,
-    LOOP
-}
-
-enum AudioVolumes {
-    MUSIC_VOLUME = 0.5,
-    SFX_VOLUME = 0.5,
-    VOX_VOLUME = 0.5,
-    AMBIENCE_VOLUME = 0.5
-}
-
-Music musicTrack;
+int[] audioChannels = [0, 0, 0, 0, 0, 0]; // 0: MUSIC, 1: VOX, 2: AMBIENCE, 3 to 5: SFX
 
 // ---- CLASS ----
 class AudioManager {
-    AudioType audioType;
-    AudioState audioState;
-    AudioLoop audioLoop;
-    // Add volume fields as class members
-    float musicVolume;
-    float sfxVolume;
-    float voxVolume;
-    float ambienceVolume;
-    Sound[8] soundEffects;
-    bool[8] soundInUse;
-
-    static AudioManager instance;
+    // Singleton instance
+    private __gshared AudioManager instance;
+    // Audio settings
+    AudioSettings audioSettings;
+    // Memory manager reference
+    private MemoryManager memoryManager;
+    
+    this() {
+        audioSettings = AudioSettings.getInstance();
+        memoryManager = MemoryManager.instance();
+    }
+    
+    // Static method to get the singleton instance
     static AudioManager getInstance() {
         if (instance is null) {
-            instance = new AudioManager();
+            synchronized {
+                if (instance is null) {
+                    instance = new AudioManager();
+                }
+            }
         }
         return instance;
     }
 
-    // Find the next available sound slot
-    int nextAvailableSoundEffect() {
-        foreach (int i, used; soundInUse) {
-            if (!used) return i;
+    // Initialize audio settings
+    void initialize() {
+        if (audioSettings.state == AudioSettingsState.INITIALIZED) {
+            writeln("AudioSettings already initialized.");
+            return;
         }
 
-        // If all are in use, return null or throw an error
-        throw new Exception("No available sound effect slots.");
+        // Load settings from a configuration file if it exists
+        AudioSettings.getInstance().loadSettings();
+        audioSettings.state = AudioSettingsState.INITIALIZED;
+        writeln("AudioSettings initialized successfully.");
+
+        if (!IsAudioDeviceReady()) {
+            writeln("Failed to initialize audio device.");
+            return;
+        }
+        writeln("Audio device initialized successfully.");
     }
 
-    // Mark a slot as used
-    void setSoundEffect(int index, Sound sfx) {
-        soundEffects[index] = sfx;
-        soundInUse[index] = true;
+    void update() {
+        // Update audio settings if needed
+        if (audioSettings.state != AudioSettingsState.INITIALIZED) {
+            initialize();
+        }
     }
-
-    // Mark a slot as unused (e.g., after unloading)
-    void freeSoundEffect(int index) {
-        UnloadSound(soundEffects[index]);
-        soundInUse[index] = false;
-    }
-
-    this() {
-        // Initialize volumes with default values
-        musicVolume = AudioVolumes.MUSIC_VOLUME;
-        sfxVolume = AudioVolumes.SFX_VOLUME;
-        voxVolume = AudioVolumes.VOX_VOLUME;
-        ambienceVolume = AudioVolumes.AMBIENCE_VOLUME;
-        // Initialize all slots as unused
-        soundInUse[] = false;
-    }
-
-    /*
-    ---- NOTE ----
-    This part of the code is responsible for setting the volume of different audio types.
-    I wish I knew what to do about the `auto` keyword here, but it seems to be a placeholder for the actual type.
-    Whether that be Music, Sound, or any other audio type. Doesn't seem to be a way to specify that in D.
-    */
-    void setVolume(AudioType audioType, void* sfx, float volume) {
-        switch (audioType) {
-            case AudioType.MUSIC:
-                musicVolume = volume;
-                SetMusicVolume(musicTrack, musicVolume);
-                break;
+    
+    /**
+     * Play a sound with volume based on settings
+     * 
+     * Params:
+     *   filePath = Path to the sound file
+     *   audioType = Type of audio (SFX, MUSIC, VOX, AMBIENCE)
+     *   volume = Optional volume override (0.0 to 1.0)
+     *   loop = Whether to loop the sound (for music and ambience)
+     *   
+     * Returns: Success flag
+     */
+    bool playSound(string filePath, AudioType audioType, float volume = -1.0f, bool loop = false) {
+        // Check if the requested audio type is enabled
+        final switch (audioType) {
             case AudioType.SFX:
-                sfxVolume = volume;
-                // Cast sfx to Sound* and set its volume
-                if (sfx !is null) {
-                    SetSoundVolume(*cast(Sound*)sfx, sfxVolume);
-                }
+                if (!audioSettings.isSFXEnabled) return false;
+                break;
+            case AudioType.MUSIC:
+                if (!audioSettings.isMusicEnabled) return false;
                 break;
             case AudioType.VOX:
-                voxVolume = volume;
-                // Assuming there's a function to set voice volume
-                SetSoundVolume(*cast(Sound*)sfx, voxVolume);
+                if (!audioSettings.isVoxEnabled) return false;
                 break;
             case AudioType.AMBIENCE:
-                ambienceVolume = volume;
-                // Assuming there's a function to set ambience volume
-                SetSoundVolume(*cast(Sound*)sfx, ambienceVolume);
+                if (!audioSettings.isAmbienceEnabled) return false;
                 break;
+        }
+        
+        if (!exists(filePath)) {
+            writeln("Sound file does not exist: ", filePath);
+            return false;
+        }
+        
+        // Use volume from settings if not specified
+        if (volume < 0) {
+            final switch (audioType) {
+                case AudioType.SFX:
+                    volume = audioSettings.sfxVolume;
+                    break;
+                case AudioType.MUSIC:
+                    volume = audioSettings.musicVolume;
+                    break;
+                case AudioType.VOX:
+                    volume = audioSettings.voxVolume;
+                    break;
+                case AudioType.AMBIENCE:
+                    volume = audioSettings.ambienceVolume;
+                    break;
+            }
+        }
+        
+        // Use MemoryManager to load and cache the sound
+        if (audioType == AudioType.MUSIC) {
+            Music music = memoryManager.loadMusic(filePath);
+            if (music.ctxData == null) {
+                writeln("Failed to load music: ", filePath);
+                return false;
+            }
+            SetMusicVolume(music, volume);
+            if (loop) {
+                PlayMusicStream(music);
+            } else {
+                UpdateMusicStream(music);
+                PlayMusicStream(music);
+            }
+            return true;
+        } else {
+            Sound sound = memoryManager.loadSound(filePath);
+            if (sound.frameCount <= 0) {
+                writeln("Failed to load sound: ", filePath);
+                return false;
+            }
+            SetSoundVolume(sound, volume);
+            PlaySound(sound);
+            return IsSoundPlaying(sound);
+        }
+    }
+    
+    /**
+     * Play a music track with volume based on settings
+     * 
+     * Params:
+     *   filePath = Path to the music file
+     *   volume = Optional volume override (0.0 to 1.0)
+     *   loop = Whether to loop the music
+     *   
+     * Returns: Success flag
+     */
+    bool playMusic(string filePath, float volume = -1.0f, bool loop = true) {
+        return playSound(filePath, AudioType.MUSIC, volume, loop);
+    }
+    
+    /**
+     * Play an SFX with volume based on settings
+     * 
+     * Params:
+     *   filePath = Path to the SFX file
+     *   volume = Optional volume override (0.0 to 1.0)
+     *   
+     * Returns: Success flag
+     */
+    bool playSFX(string filePath, float volume = -1.0f) {
+        return playSound(filePath, AudioType.SFX, volume);
+    }
+    
+    /**
+     * Play a voice clip with volume based on settings
+     * 
+     * Params:
+     *   filePath = Path to the voice file
+     *   volume = Optional volume override (0.0 to 1.0)
+     *   
+     * Returns: Success flag
+     */
+    bool playVOX(string filePath, float volume = -1.0f) {
+        return playSound(filePath, AudioType.VOX, volume);
+    }
+    
+    /**
+     * Play an ambience track with volume based on settings
+     * 
+     * Params:
+     *   filePath = Path to the ambience file
+     *   volume = Optional volume override (0.0 to 1.0)
+     *   loop = Whether to loop the ambience
+     *   
+     * Returns: Success flag
+     */
+    bool playAmbience(string filePath, float volume = -1.0f, bool loop = true) {
+        return playSound(filePath, AudioType.AMBIENCE, volume, loop);
+    }
+    
+    /**
+     * Preload sounds in the background to avoid loading hitches during gameplay
+     * 
+     * Params:
+     *   soundPaths = Paths to sound files to preload
+     *   musicPaths = Paths to music files to preload
+     */
+    void preloadAudio(string[] soundPaths, string[] musicPaths = []) {
+        // Use the MemoryManager to preload resources
+        memoryManager.preloadResources([], soundPaths, musicPaths);
+    }
+    
+    /**
+     * Legacy method for backward compatibility
+     * Simply forwards to the appropriate playSFX method
+     */
+    void loadSound(string filePath, AudioType audioType) {
+        switch (audioType) {
+            case AudioType.MUSIC:
+                playMusic(filePath);
+                break;
+            case AudioType.VOX:
+                playVOX(filePath);
+                break;
+            case AudioType.AMBIENCE:
+                playAmbience(filePath);
+                break;
+            case AudioType.SFX:
             default:
-                throw new Exception("Invalid AudioType specified.");
+                playSFX(filePath);
+                break;
         }
     }
 }
