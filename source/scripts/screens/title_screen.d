@@ -1,109 +1,168 @@
 module screens.title_screen;
 
 import raylib;
+import std.random;
 
 import std.stdio;
 import std.file;
+import std.json;
 import std.path;
+import std.process;
+import std.algorithm;
+import std.conv : to;
+import std.math;
 import std.string : toStringz;
+import core.stdc.stdint; // For uint8_t
 
 import world.screen_manager;
-import world.memory_manager; // Added import
-import world.audio_manager; // Added import
-import world.screen_states; // Added import
+import world.memory_manager;
+import world.audio_manager;
+import world.screen_states;
 
 // ---- LOCAL VARIABLES ----
-// Textures (will be loaded by MemoryManager)
-Texture titleLogoTexture;
-Texture titleLogo2Texture;
-Texture clickHereTexture;
-Texture clickHereOverTexture;
-Texture currentClickTexture; // To hold the current texture for the click bar
-Texture backgroundTexture; // Added for the background
+Texture backgroundTexture;
+Texture logoTexture;
+Texture logoAlpha;
+Texture logo2Texture;
+Texture logo2Alpha;
+Texture buttonTexture;
+Texture buttonHoveredTexture;
+Texture buttonAlpha;
+Texture sparkleTexture; // Texture is used for sparkle animation (and its own alpha texture)
+Texture planetTexture;
+Texture planetAlpha;
+Texture whitenedLogo2Texture;
 
-// ---- ENUMS ----
-enum TitleScreenState {
-    UNINITIALIZED,
-    INITIALIZING,
-    FADING_IN,       // Initial fade from black
-    LOGO_FLYING_IN,  // Main logo animation
-    LOGO2_FADING_IN, // "2" logo animation
-    LOADER_FADING_IN,// "Click here" bar animation
-    ACTIVE,          // Waiting for user input
-    FADING_OUT       // Transitioning to next screen
+Sound welcomeSound;
+Sound welcomeBackSound;
+Sound menuClickSound;
+Sound menuClick2Sound;
+Sound mainMenuMouseOverSound;
+Sound mainMenuMouseClickSound;
+Sound mainMenuMouseOffSound;
+Sound click2Sound;
+Sound mainMenuGameStartSound;
+
+Image[] sparkleImages;
+Texture2D[] sparkleFrameTextures;
+
+float logoFadeAlpha = 0.0f;
+bool isMusicPlaying = false;
+bool playerReady = false;
+float screenFadeAlpha = 1.0f;
+bool fadeInComplete = false;
+Vector2 buttonScale;
+
+// Declare global positions for logo, logo2, button, and planet
+Vector2 logoPosition;
+Vector2 logo2Position;
+Vector2 buttonPosition;
+Vector2 planetPosition;
+
+// Add variables for logo animation
+float logoTargetY = 0.0f;  // Target Y position for the logo
+float logoStartY = 0.0f;   // Starting Y position (below screen)
+bool logoAnimationStarted = false;
+
+// Add variables for whitened logo2 debugging
+float whitenedLogo2Alpha = 0.0f;
+bool whitenedLogo2Drawn = false;
+float whitenedLogo2Timer = 0.0f;
+
+// Add variables for button delay after logo2
+float buttonAppearDelayTimer = 0.0f;
+bool buttonAppearDelayStarted = false;
+
+// Add variables for sparkle animation
+int currentSparkleFrame = 0;
+int sparkleStarIndex = -1;
+float sparkleFrameTimer = 0.0f;
+float sparkleStarTimer = 0.0f;
+bool sparkleActive = false;
+
+// ---- STAR STRUCT ----
+struct Star {
+    float x;
+    float y;
+    float speed;
+    Color color;
+    
+    // ---- STAR FIELD ----
+    void update(float deltaTime) {
+        y -= speed * deltaTime;
+        if (y > GetScreenHeight()) {
+            y = 0.0f;
+            x = uniform(0, GetScreenWidth());
+        }
+    }
 }
 
 // ---- CLASS ----
 class TitleScreen : IScreen {
     // Singleton instance
-    private __gshared TitleScreen instance; // Made private and __gshared as per previous convention
-
-    // Managers
+    private __gshared TitleScreen instance;
     private MemoryManager memoryManager;
     private AudioManager audioManager;
 
-    // Current state of the title screen
-    TitleScreenState state;
+    // Current state of the screen
+    TitleState state;
 
+    // Timer for animations
+    private float sparkleTimer = 0.0f;
     // Resources to preload
     private string[] texturesToPreload;
     private string[] soundsToPreload;
     private string[] musicToPreload;
-
-    // Animation Timers & Durations (in seconds)
-    private float fadeInTimer = 0.0f;
-    private const float fadeInDuration = 1.0f;
-
-    private float logoFlyInTimer = 0.0f;
-    private const float logoFlyInDuration = 0.75f;
-
-    private float logo2FadeInTimer = 0.0f;
-    private const float logo2FadeInDuration = 0.5f;
-
-    private float loaderFadeInTimer = 0.0f;
-    private const float loaderFadeInDuration = 0.5f;
-
-    // Animation Properties
-    private float currentAlpha = 0.0f; // General alpha for fades
-    private Vector2 titleLogoPos;
-    private float titleLogoStartY;
-    private float titleLogoEndY;
-
-    private float logo2Alpha = 0.0f;
-    private float loaderAlpha = 0.0f;
-
-    // Interaction
-    private Rectangle clickHereBounds;
-    private bool isMouseOverClickHere = false;
-
+    
+    private Star[] stars; // Array of stars for star field effect
     this() {
-        instance = this;
-        state = TitleScreenState.UNINITIALIZED;
-        memoryManager = MemoryManager.instance(); // Get instance
-        audioManager = AudioManager.getInstance(); // Get instance
+        // Initialize singleton instance
+        if (instance is null) {
+            instance = this;
+        }
 
-        // Define the resources to preload
+        memoryManager = MemoryManager.instance();
+        audioManager = AudioManager.getInstance();
+
         texturesToPreload = [
-            "resources/image/title_logo.png",
-            // "resources/image/title_logo_.png", // alpha - Handled manually
-            "resources/image/title_logo2.png",
-            // "resources/image/title_logo2_.png", // alpha - Handled manually
+            // Textures for the title screen
             "resources/image/title_loaderbar_clickhere.png",
             "resources/image/title_loaderbar_clickhere_over.png",
-            // "resources/image/title_loaderbarlit_.png", // alpha - Handled manually
-            "resources/image/placeholder_1.png", // Added background
-        ];
+            "resources/image/title_loaderbarlit_.png", // alpha
+            "resources/image/title_logo.png",
+            "resources/image/title_logo_.png", // alpha
+            "resources/image/title_logo2.png",
+            "resources/image/title_logo2_.png", // alpha
+            "resources/image/sparkle.png", // same texture is used for alpha
+            "resources/image/backdrops/backdrop_title_A.png",
+            "resources/image/planet1.png",
+            "resources/image/planet1_.png", // alpha
+            // Textures for the main menu
+            "resources/image/Menu-Gadgets.png",
+            "resources/image/Menu-Gadgets_.png" // alpha
+            // add more later
+         ];
 
-        soundsToPreload = [
-            "resources/audio/sfx/select.ogg",
-            "resources/audio/sfx/mainmenu_mouseclick.ogg"
-        ];
-        
+         soundsToPreload = [
+            // Sounds for the title screen
+            "resources/audio/sfx/menuclick.ogg",
+            "resources/audio/sfx/menuclick2.ogg",
+            "resources/audio/vox/welcome.ogg",
+            "resources/audio/vox/welcome_back.ogg",
+            // Sounds for the main menu
+            "resources/audio/sfx/mainmenu_mouseover.ogg",
+            "resources/audio/sfx/mainmenu_mouseclick.ogg",
+            "resources/audio/sfx/mainmenu_mouseoff.ogg",
+            "resources/audio/sfx/click2.ogg",
+            "resources/audio/sfx/mainmenu_gamestart.ogg"
+         ];
+
         musicToPreload = [
-            "resources/audio/music/arranged/Main Theme Bejeweled 2.ogg",
-            // "resources/audio/music/arranged/Autonomous.ogg" // Removed unless needed for title
-        ];
-    }
+            // Music for the title screen (if any)
+            "resources/audio/music/arranged/Autonomous.ogg",
+            "resources/audio/music/arranged/Main Theme - Bejeweled 2.ogg"
+        ];}
+
     static TitleScreen getInstance() {
         if (instance is null) {
             synchronized {
@@ -113,298 +172,523 @@ class TitleScreen : IScreen {
             }
         }
         return instance;
-    }   
-
-    // Initialize the title screen
-    void initialize() {
-        if (state != TitleScreenState.UNINITIALIZED) {
-            writeln("TitleScreen already initialized or initializing.");
-            return;
-        }
-        state = TitleScreenState.INITIALIZING;
-        writeln("Initializing TitleScreen...");
-
-        // --- Apply Alpha Masks ---
-        // Helper function to load, mask, and update texture
-        Texture applyAlphaMask(string texturePath, string alphaPath) {
-            Texture baseTex = memoryManager.loadTexture(texturePath);
-            if (baseTex.id == 0) {
-                writeln("Warning: Base texture not found: ", texturePath);
-                return baseTex; // Return unloaded texture
-            }
-            if (!exists(alphaPath)) {
-                 writeln("Warning: Alpha mask not found: ", alphaPath);
-                 return baseTex; // Return original texture if no mask
-            }
-
-            Image baseImage = LoadImageFromTexture(baseTex);
-            Image alphaImage = LoadImage(alphaPath.toStringz());
-
-            if (alphaImage.data !is null) {
-                // Ensure dimensions match (optional but good practice)
-                if (baseImage.width == alphaImage.width && baseImage.height == alphaImage.height) {
-                    ImageAlphaMask(&baseImage, alphaImage);
-                    // Unload the old texture before loading the new one from the modified image
-                    // Update the local Texture variable instead of trying to replace it in the manager.
-                    UnloadTexture(baseTex); // Unload the texture loaded by manager initially
-                    baseTex = LoadTextureFromImage(baseImage); // Load new texture from masked image
-                    writeln("Applied alpha mask: ", alphaPath);
-
-                } else {
-                    writeln("Warning: Dimension mismatch between texture and alpha mask: ", texturePath, " and ", alphaPath);
-                }
-                UnloadImage(alphaImage); // Unload alpha mask image
-            } else {
-                 writeln("Warning: Failed to load alpha mask image: ", alphaPath);
-            }
-            UnloadImage(baseImage); // Unload base image
-            return baseTex; // Return the (potentially new) texture
-        }
-
-        // Load essential textures and apply masks
-        titleLogoTexture = applyAlphaMask("resources/image/title_logo.png", "resources/image/title_logo_.png");
-        titleLogo2Texture = applyAlphaMask("resources/image/title_logo2.png", "resources/image/title_logo2_.png");
-
-        // Load other textures normally, applying alpha mask to loader bar
-        clickHereTexture = applyAlphaMask("resources/image/title_loaderbar_clickhere.png", "resources/image/title_loaderbarlit_.png");
-        clickHereOverTexture = applyAlphaMask("resources/image/title_loaderbar_clickhere_over.png", "resources/image/title_loaderbarlit_.png");
-        backgroundTexture = memoryManager.loadTexture("resources/image/placeholder_1.png"); // Load background
-        currentClickTexture = clickHereTexture; // Start with normal texture
-
-        // Preload other resources (alpha maps removed from list in previous step)
-        preloadResources(); 
-
-        // Setup animation start/end values
-        titleLogoEndY = 100; // Target Y position for the main logo
-        titleLogoStartY = GetScreenHeight(); // Start off-screen below
-        // Ensure texture width is valid before calculating position
-        if (titleLogoTexture.id != 0) {
-             titleLogoPos = Vector2( (GetScreenWidth() - titleLogoTexture.width) / 2.0f, titleLogoStartY );
-        } else {
-             titleLogoPos = Vector2( GetScreenWidth() / 2.0f, titleLogoStartY ); // Fallback position
-             writeln("Warning: titleLogoTexture invalid, using fallback position.");
-        }
-
-
-        // Calculate bounds for the click bar (adjust Y as needed)
-        if (clickHereTexture.id != 0) {
-            float clickBarX = (GetScreenWidth() - clickHereTexture.width) / 2.0f;
-            float clickBarY = GetScreenHeight() * 0.75f; // Example position
-            clickHereBounds = Rectangle(clickBarX, clickBarY, clickHereTexture.width, clickHereTexture.height);
-        } else {
-             clickHereBounds = Rectangle(0, 0, 0, 0); // Fallback bounds
-             writeln("Warning: clickHereTexture invalid, using fallback bounds.");
-        }
-
-
-        // Reset timers and alphas
-        fadeInTimer = 0.0f;
-        logoFlyInTimer = 0.0f;
-        logo2FadeInTimer = 0.0f;
-        loaderFadeInTimer = 0.0f;
-        currentAlpha = 0.0f;
-        logo2Alpha = 0.0f;
-        loaderAlpha = 0.0f;
-        isMouseOverClickHere = false;
-
-        // Start the fade in
-        state = TitleScreenState.FADING_IN;
-        writeln("TitleScreen initialized. Starting fade in.");
     }
 
-    private void preloadResources() {
-        writeln("Starting TitleScreen resource preloading...");
+    void initialize() {
+        memoryManager = MemoryManager.instance();
+        audioManager = AudioManager.getInstance();
+
+        // Load textures
+        backgroundTexture = LoadTexture("resources/image/backdrops/backdrop_title_A.png");
+        logoTexture = LoadTexture("resources/image/title_logo.png");
+        logoAlpha = LoadTexture("resources/image/title_logo_.png");
+        logo2Texture = LoadTexture("resources/image/title_logo2.png");
+        logo2Alpha = LoadTexture("resources/image/title_logo2_.png");
+        buttonTexture = LoadTexture("resources/image/title_loaderbar_clickhere.png");
+        buttonHoveredTexture = LoadTexture("resources/image/title_loaderbar_clickhere_over.png");
+        buttonAlpha = LoadTexture("resources/image/title_loaderbarlit_.png");
+        sparkleTexture = LoadTexture("resources/image/sparkle.png");
+        planetTexture = LoadTexture("resources/image/planet1.png");
+        planetAlpha = LoadTexture("resources/image/planet1_.png");
+
+        // Initialize state
+        state = TitleState.LOGO;
+
+        // Initialize audio
+        audioManager.initialize();
+
+        // Load sounds
+        welcomeSound = LoadSound("resources/audio/vox/welcome.ogg");
+        welcomeBackSound = LoadSound("resources/audio/vox/welcome_back.ogg");
+        menuClickSound = LoadSound("resources/audio/sfx/menuclick.ogg");
+        menuClick2Sound = LoadSound("resources/audio/sfx/menuclick2.ogg");
+        mainMenuMouseOverSound = LoadSound("resources/audio/sfx/mainmenu_mouseover.ogg");
+        mainMenuMouseClickSound = LoadSound("resources/audio/sfx/mainmenu_mouseclick.ogg");
+        mainMenuMouseOffSound = LoadSound("resources/audio/sfx/mainmenu_mouseoff.ogg");
+        click2Sound = LoadSound("resources/audio/sfx/click2.ogg");
+        mainMenuGameStartSound = LoadSound("resources/audio/sfx/mainmenu_gamestart.ogg");
+
+        // Set initial state
+        state = TitleState.LOGO;
+
+        alphaMapTextures();
+        sliceSparkleTextures();
+
+        // Initialize positions
+        logoTargetY = (GetScreenHeight() - logoTexture.height) / 8;
+        logoStartY = GetScreenHeight() + 50.0f; // Start below screen
+        logoPosition = Vector2((GetScreenWidth() - logoTexture.width) / 2.0f, GetScreenHeight()); // Start below screen
+        logo2Position = Vector2((GetScreenWidth() - logo2Texture.width) / 2.0f, (GetScreenHeight() - logo2Texture.height) / 3.0f);
+        buttonPosition = Vector2((GetScreenWidth() - buttonTexture.width) / 2.0f, GetScreenHeight() - buttonTexture.height - 50.0f);
+        planetPosition = Vector2(GetScreenWidth() - (planetTexture.width / (3.0/2.0)), GetScreenHeight() - planetTexture.height);
+        buttonScale = Vector2(0, 0);
+    
+        // Play autonomous music if not already playing
+        audioManager.playSound("resources/audio/music/arranged/Autonomous.ogg", AudioType.MUSIC, 1.0f, true);
+    }
+
+    void alphaMapTextures() {
+        Image logoImage = LoadImageFromTexture(logoTexture);
+        Image logoAlphaImage = LoadImageFromTexture(logoAlpha);        
+        Image logo2Image = LoadImageFromTexture(logo2Texture);
+        Image logo2AlphaImage = LoadImageFromTexture(logo2Alpha);
+        Image buttonImage = LoadImageFromTexture(buttonTexture);
+        Image buttonAlphaImage = LoadImageFromTexture(buttonAlpha);
+        Image planetImage = LoadImageFromTexture(planetTexture);
+        Image planetAlphaImage = LoadImageFromTexture(planetAlpha);
         
-        // Preload textures
-        foreach(texturePath; texturesToPreload) {
-             if (exists(texturePath)) {
-                 memoryManager.loadTexture(texturePath); // Load and cache
-             } else {
-                 writeln("Warning: TitleScreen texture not found: ", texturePath);
-             }
+        // Apply alpha mapping to logo textures
+        ImageAlphaMask(&logoImage, logoAlphaImage);
+        logoTexture = LoadTextureFromImage(logoImage);
+        // UnloadImage(logoAlphaImage); // Commented out to avoid double free
+        // Apply alpha mapping to logo2 textures
+        ImageAlphaMask(&logo2Image, logo2AlphaImage);
+        logo2Texture = LoadTextureFromImage(logo2Image);
+        // UnloadImage(logo2AlphaImage); // Commented out to avoid double free
+        // Apply alpha mapping to button textures
+        ImageAlphaMask(&buttonImage, buttonAlphaImage);
+        buttonTexture = LoadTextureFromImage(buttonImage);
+        // UnloadImage(buttonAlphaImage); // Commented out to avoid double free
+        // Apply alpha mapping to planet textures
+        ImageAlphaMask(&planetImage, planetAlphaImage);
+        planetTexture = LoadTextureFromImage(planetImage);
+        // UnloadImage(planetAlphaImage); // Commented out to avoid double free
+        // Apply alpha mapping to sparkle textures
+        Image sparkleImage = LoadImageFromTexture(sparkleTexture);
+        Image sparkleAlphaImage = LoadImageFromTexture(sparkleTexture);
+        ImageAlphaMask(&sparkleImage, sparkleAlphaImage);
+        sparkleTexture = LoadTextureFromImage(sparkleImage);
+        // UnloadImage(sparkleAlphaImage); // Commented out to avoid double free
+        // Apply alpha mapping to whitened logo2 texture
+        Image whitenedLogo2Image = LoadImageFromTexture(logo2Alpha);
+        ImageAlphaMask(&whitenedLogo2Image, whitenedLogo2Image);
+        whitenedLogo2Texture = LoadTextureFromImage(whitenedLogo2Image);
+        // UnloadImage(whitenedLogo2Image); // Commented out to avoid double free
+        // Apply alpha mapping to button hovered textures
+        Image buttonHoveredImage = LoadImageFromTexture(buttonHoveredTexture);
+        ImageAlphaMask(&buttonHoveredImage, buttonAlphaImage);
+        buttonHoveredTexture = LoadTextureFromImage(buttonHoveredImage);
+        // UnloadImage(buttonAlphaImage); // Commented out to avoid double free
+    }
+
+    void sliceSparkleTextures() {
+        // the image is 14 sprites, 40x40 each
+        int spriteWidth = 40;
+        int spriteHeight = 40;
+        int spriteCount = 14;
+        sparkleImages = new Image[spriteCount];
+        sparkleFrameTextures = new Texture2D[spriteCount];
+        
+        // Load the correct sparkle image for both texture and alpha
+        Image sparkleImage = LoadImage("resources/image/sparkle.png");
+        
+        for (int i = 0; i < spriteCount; i++) {
+            int x = (i % 14) * spriteWidth;
+            int y = (i / 14) * spriteHeight;
+            
+            // Crop the frame from the sprite sheet
+            Image croppedImage = ImageFromImage(sparkleImage, Rectangle(x, y, spriteWidth, spriteHeight));
+            
+            // Also crop the same image to use as alphamap (sparkle is its own alpha)
+            Image croppedAlpha = ImageFromImage(sparkleImage, Rectangle(x, y, spriteWidth, spriteHeight));
+            
+            // Apply alpha mask - use the image as its own alpha
+            ImageAlphaMask(&croppedImage, croppedAlpha);
+            
+            // Store the alpha-mapped image
+            sparkleImages[i] = croppedImage;
+            
+            // Create texture from the alpha-mapped image
+            sparkleFrameTextures[i] = LoadTextureFromImage(croppedImage);
+            
+            // We can unload the alpha image since we're done with it
+            UnloadImage(croppedAlpha);
         }
         
-        // Preload sounds
-        foreach(soundPath; soundsToPreload) {
-            if (exists(soundPath)) {
-                // Load sound into memory (AudioManager might handle this differently, adjust if needed)
-                // For Raylib, loading sounds might happen on first play, but pre-caching is good.
-                // Wave wave = LoadWave(soundPath.toStringz()); // Example if direct loading needed
-                // UnloadWave(wave); 
-                // Or use AudioManager's potential preload mechanism
-                audioManager.playSFX(soundPath, 0.0f); // Load with volume 0
-            } else {
-                writeln("Warning: TitleScreen sound not found: ", soundPath);
-            }
-        }
-        
-        // Preload music (already handled by InitScreen, but good practice)
-        foreach(musicPath; musicToPreload) {
-            if (exists(musicPath)) {
-                // audioManager.playMusic(musicPath, 0.0f, false); // Load with volume 0, don't play
-            } else {
-                writeln("Warning: TitleScreen music not found: ", musicPath);
-            }
-        }
-        
-        writeln("TitleScreen resource preloading complete");
+        // Unload the original image after slicing
+        UnloadImage(sparkleImage);
     }
 
     void update(float deltaTime) {
-        if (state == TitleScreenState.UNINITIALIZED || state == TitleScreenState.INITIALIZING) return;
+        // Handle fade from black effect
+        if (screenFadeAlpha > 0.0f) {
+            screenFadeAlpha -= deltaTime * 2.0f; // Fade out over 0.5 seconds
+            if (screenFadeAlpha < 0.0f) {
+                screenFadeAlpha = 0.0f;
+                // Start logo animation when fade is complete
+                logoAnimationStarted = true;
+                // Don't play welcome sound here - it will play when button is clicked
+            }
+        }
 
-        Vector2 mousePos = GetMousePosition();
-
-        // Update based on state
-        final switch (state) {
-            case TitleScreenState.FADING_IN:
-                fadeInTimer += deltaTime;
-                currentAlpha = fadeInTimer / fadeInDuration;
-                if (currentAlpha > 1.0f) currentAlpha = 1.0f;
-                
-                if (fadeInTimer >= fadeInDuration) {
-                    state = TitleScreenState.LOGO_FLYING_IN;
-                    fadeInTimer = 0.0f; // Reset timer for potential reuse
-                    writeln("TitleScreen: Fade in complete. Starting logo fly-in.");
-                }
-                break;
-
-            case TitleScreenState.LOGO_FLYING_IN:
-                logoFlyInTimer += deltaTime;
-                float flyInRatio = logoFlyInTimer / logoFlyInDuration;
-                if (flyInRatio > 1.0f) flyInRatio = 1.0f;
-
-                // Use Lerp for smooth movement
-                titleLogoPos.y = Lerp(titleLogoStartY, titleLogoEndY, flyInRatio);
-
-                if (logoFlyInTimer >= logoFlyInDuration) {
-                    titleLogoPos.y = titleLogoEndY; // Ensure it ends exactly at the target
-                    state = TitleScreenState.LOGO2_FADING_IN;
-                    logoFlyInTimer = 0.0f;
-                    writeln("TitleScreen: Logo fly-in complete. Starting logo 2 fade-in.");
-                }
-                break;
-
-            case TitleScreenState.LOGO2_FADING_IN:
-                logo2FadeInTimer += deltaTime;
-                logo2Alpha = logo2FadeInTimer / logo2FadeInDuration;
-                if (logo2Alpha > 1.0f) logo2Alpha = 1.0f;
-
-                if (logo2FadeInTimer >= logo2FadeInDuration) {
-                    state = TitleScreenState.LOADER_FADING_IN;
-                    logo2FadeInTimer = 0.0f;
-                    writeln("TitleScreen: Logo 2 fade-in complete. Starting loader fade-in.");
-                }
-                break;
-
-            case TitleScreenState.LOADER_FADING_IN:
-                loaderFadeInTimer += deltaTime;
-                loaderAlpha = loaderFadeInTimer / loaderFadeInDuration;
-                if (loaderAlpha > 1.0f) loaderAlpha = 1.0f;
-
-                if (loaderFadeInTimer >= loaderFadeInDuration) {
-                    state = TitleScreenState.ACTIVE;
-                    loaderFadeInTimer = 0.0f;
-                    writeln("TitleScreen: Loader fade-in complete. Active.");
-                }
-                break;
-
-            case TitleScreenState.ACTIVE:
-                // Check for mouse hover over the click bar
-                isMouseOverClickHere = CheckCollisionPointRec(mousePos, clickHereBounds);
-
-                if (isMouseOverClickHere) {
-                    currentClickTexture = clickHereOverTexture;
-                    // Optionally play a hover sound (if desired and available)
-                    // if (!wasMouseOverClickHereLastFrame) audioManager.playSFX("resources/audio/sfx/button_hover.ogg"); 
-                } else {
-                    currentClickTexture = clickHereTexture;
-                }
-
-                // Check for click
-                if (isMouseOverClickHere && IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT)) { // Corrected enum member
-                    writeln("TitleScreen: Clicked 'Click Here to Play'. Transitioning...");
-                    audioManager.playSFX("resources/audio/sfx/mainmenu_mouseclick.ogg");
-                    // TODO: Transition to the actual main menu screen state
-                    // For now, let's just fade out or go back to init for testing
-                    // state = TitleScreenState.FADING_OUT; 
-                    ScreenManager.instance.changeState(ScreenState.INIT); // Changed instance() to instance
-                }
-                break;
-
-            case TitleScreenState.FADING_OUT:
-                // Implement fade-out logic if needed before changing screen
-                // Example: currentAlpha -= deltaTime / fadeOutDuration;
-                // if (currentAlpha <= 0) { ... change screen ... }
-                break;
+        // Handle logo rising animation with easing
+        if (logoAnimationStarted) {
+            float easingFactor = 4.0f; // Adjust for speed of easing
             
-            case TitleScreenState.UNINITIALIZED:
-            case TitleScreenState.INITIALIZING:
-                break; // Should not happen due to check at start
+            // DEBUG: Print logo position information
+            static float logoPosTimer = 0.0f;
+            logoPosTimer += deltaTime;
+            if (logoPosTimer >= 1.0f) {
+                logoPosTimer = 0.0f;
+                writeln("Logo position debug - current Y: ", logoPosition.y, " target Y: ", logoTargetY);
+                writeln("Logo started: ", logoAnimationStarted);
+            }
+            
+            if (logoPosition.y > logoTargetY) {
+                logoPosition.y = logoPosition.y + (logoTargetY - logoPosition.y) * easingFactor * deltaTime;
+                if (logoPosition.y < logoTargetY) {
+                    logoPosition.y = logoTargetY; // Snap to target position
+                }
+            }
+
+            if (logoPosition.y <= logoTargetY) {
+                logoPosition.y = logoTargetY; // Snap to target position
+            }
+            
+            // Force logo to reach target after 3 seconds to avoid potential animation glitches
+            static float logoForceTimer = 0.0f;
+            logoForceTimer += deltaTime;
+            if (logoForceTimer > 3.0f && logoAnimationStarted) {
+                logoPosition.y = logoTargetY;
+            }
+        }
+
+        // Update position of planet
+        planetPosition.y -= 2.5f * deltaTime; // Move planet downwards
+        if (planetPosition.y > GetScreenHeight()) {
+            planetPosition.y = -planetTexture.height; // Reset position when it goes off screen
+        }
+        
+        // Optimize sparkle animation - don't do heavy image manipulation every frame
+        // Instead update the animation less frequently
+        static float sparkleUpdateTime = 0.0f;
+        sparkleTimer += deltaTime;
+        sparkleUpdateTime += deltaTime;
+        
+        // Only update sparkle animation every 100ms (10 times per second) instead of every frame
+        if (sparkleUpdateTime >= 0.1f) {
+            sparkleUpdateTime = 0.0f;
+            
+            for (int i = 0; i < sparkleImages.length; i++) {
+                // Safely reinterpret void* as ubyte[]
+                ubyte[] imageData = cast(ubyte[])sparkleImages[i].data[0 .. sparkleImages[i].width * sparkleImages[i].height * 4];
+                if (imageData.length > i) {
+                    imageData[i] = cast(ubyte)clamp(255.0f * sin(sparkleTimer + cast(float)i * 0.1f), 0.0f, 255.0f);
+                }
+            }
+        }
+
+        // Update sparkle animation
+        sparkleFrameTimer += deltaTime;
+        sparkleStarTimer += deltaTime;
+        
+        // Choose a new star to sparkle every few seconds
+        if (!sparkleActive || sparkleStarTimer > 3.0f) {
+            sparkleStarTimer = 0.0f;
+            
+            // Only create sparkle if we have stars
+            if (stars !is null && stars.length > 0) {
+                // Pick a random star to sparkle on
+                sparkleStarIndex = uniform(0, cast(int)stars.length);
+                sparkleActive = true;
+                currentSparkleFrame = 0; // Start animation from beginning
+            }
+        }
+        
+        // Advance sparkle animation frames
+        if (sparkleActive && sparkleFrameTimer > 0.05f) { // ~20 FPS for sparkle animation
+            sparkleFrameTimer = 0.0f;
+            currentSparkleFrame++;
+            
+            // If we reached the end of the animation, stop the sparkle
+            if (currentSparkleFrame >= sparkleImages.length) {
+                sparkleActive = false;
+                currentSparkleFrame = 0;
+            }
+        }
+
+        // Handle state transitions and button click
+        switch (state) {
+            case TitleState.LOGO:
+                // Modified to only depend on fadeInComplete, not on logo position
+                if (fadeInComplete) {
+                    if (!buttonAppearDelayStarted) {
+                        buttonAppearDelayStarted = true;
+                        buttonAppearDelayTimer = 0.0f;
+                    }
+                    if (buttonAppearDelayTimer < 2.0f) {
+                        buttonAppearDelayTimer += deltaTime;
+                    } else {
+                        // Improved animation with smoother transition from scale-in to pulsing
+                        static float buttonAnimTime = 0.0f;
+                        buttonAnimTime += deltaTime;
+                        
+                        // Combined smooth scale-in and pulse effect
+                        float baseScale = 0.0f;
+                        float pulseScale = 0.0f;
+                        
+                        // Scale-in phase (0.5 seconds)
+                        if (buttonAnimTime < 0.5f) {
+                            // Ease-out curve for smoother approach to 1.0
+                            float t = buttonAnimTime / 0.5f;
+                            baseScale = 1.0f - (1.0f - t) * (1.0f - t); // Quadratic ease-out
+                            pulseScale = 0.0f; // No pulse during scale-in
+                        } else {
+                            baseScale = 1.0f; // Fully scaled in
+                            // Gentle sine pulse (period of 2 seconds, small amplitude)
+                            pulseScale = 0.05f * sin((buttonAnimTime - 0.5f) * 3.14159f); // Slower, gentler pulse
+                        }
+                        
+                        // Apply combined scale
+                        float finalScale = baseScale + pulseScale;
+                        buttonScale = Vector2(finalScale, finalScale);
+                        
+                        // Center button position based on scale
+                        buttonPosition.x = (GetScreenWidth() - buttonTexture.width * finalScale) / 2.0f;
+                        buttonPosition.y = GetScreenHeight() - buttonTexture.height * finalScale - 50.0f;
+                        
+                        // Button click logic
+                        if (buttonScale.x >= 0.9f && IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT)) {
+                            Vector2 mousePos = GetMousePosition();
+                            Rectangle buttonRect = Rectangle(
+                                buttonPosition.x, 
+                                buttonPosition.y, 
+                                buttonTexture.width * buttonScale.x, 
+                                buttonTexture.height * buttonScale.y
+                            );
+                            if (CheckCollisionPointRec(mousePos, buttonRect)) {
+                                PlaySound(welcomeSound);
+                                state = TitleState.MAINMENU;
+                                if (!isMusicPlaying) {
+                                    audioManager.playMusic("resources/audio/music/arranged/Main Theme - Bejeweled 2.ogg");
+                                    isMusicPlaying = true;
+                                }
+                            }
+                        }
+                    }
+                }
+                break;
+
+            case TitleState.MAINMENU:
+                if (IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT)) {
+                    // Play click sound when button is clicked
+                    audioManager.playSound("resources/audio/sfx/menuclick.ogg", AudioType.SFX, 1.0f, false);
+                    // Transition to gameplay or next screen
+                }
+                break;
+
+            default:
+                break;
+        }
+
+        // Update star field effect
+        if (stars is null) {
+            // Initialize stars only once - limit to 200 stars for better performance
+            int starCount = 200; // Reduced from 400 to 200 
+            stars = new Star[starCount];
+            for (int i = 0; i < starCount; i++) {
+                stars[i] = Star(
+                    x: uniform(0, GetScreenWidth()),
+                    y: uniform(0, GetScreenHeight()),
+                    speed: uniform(1.0f, 5.0f),
+                    color: Color(
+                        r: cast(uint8_t)uniform(200, 255),
+                        g: cast(uint8_t)uniform(200, 255),
+                        b: cast(uint8_t)uniform(200, 255),
+                        a: 255
+                    )
+                );
+            }
+        }
+        else {
+            // Update all stars at once
+            for (int i = 0; i < stars.length; i++) {
+                stars[i].update(deltaTime);
+            }
+        }
+
+        // Update logo2 fade-in effect after 2 seconds
+        static float logo2FadeInTimer = 0.0f;
+        logo2FadeInTimer += deltaTime;
+
+        if (!fadeInComplete && logo2FadeInTimer >= 2.0f && whitenedLogo2Alpha < 1.0f) {
+            whitenedLogo2Alpha += deltaTime * 0.75f; // Fade in over 2 seconds
+            if (whitenedLogo2Alpha >= 1.0f) {
+                whitenedLogo2Alpha = 1.0f; // Clamp to max alpha
+                fadeInComplete = true;
+            }
+        }
+        else if (fadeInComplete && logo2FadeInTimer >= 3.0f) {
+            whitenedLogo2Alpha -= deltaTime * 0.75f; // Fade out after 3 seconds
+            if (whitenedLogo2Alpha <= 0.0f) {
+                whitenedLogo2Alpha = 0.0f; // Clamp to min alpha
+            }
         }
     }
 
     void draw() {
-        if (state == TitleScreenState.UNINITIALIZED || state == TitleScreenState.INITIALIZING) return;
-
-        // Always clear background first (optional if background covers everything)
-        // ClearBackground(Colors.BLACK);
-
-        // Draw background element
-        if (backgroundTexture.id != 0) {
-            DrawTexture(backgroundTexture, 0, 0, Colors.WHITE);
-        } else {
-            ClearBackground(Colors.BLACK); // Fallback if background not loaded
+        // Draw sparkle on top of a random star
+        if (sparkleActive && sparkleStarIndex >= 0 && sparkleStarIndex < stars.length && sparkleFrameTextures.length > 0) {
+            // Get the selected star position
+            float sparkleX = stars[sparkleStarIndex].x - 20; // Center sparkle (40x40 pixels)
+            float sparkleY = stars[sparkleStarIndex].y - 20;
+            
+            // Draw the current frame of sparkle animation
+            if (currentSparkleFrame < sparkleFrameTextures.length) {
+                // Get the correct sparkle frame texture
+                DrawTextureEx(
+                    sparkleFrameTextures[currentSparkleFrame], 
+                    Vector2(sparkleX, sparkleY),
+                    0.0f,  // Rotation
+                    1.0f,  // Scale
+                    Colors.WHITE
+                );
+            }
         }
 
-        // Draw main logo - visible after initial fade, moves during fly-in
-        if (state >= TitleScreenState.LOGO_FLYING_IN && titleLogoTexture.id != 0) {
-             DrawTextureV(titleLogoTexture, titleLogoPos, Colors.WHITE);
+        // make background 
+        ClearBackground(Colors(70, 94, 150, 255));
+        
+        // Draw star field effect - avoid updating stars here
+        if (stars !is null) {
+            for (int i = 0; i < stars.length; i++) {
+                // Don't call update here, it's already done in the update method
+                DrawCircle(cast(int)stars[i].x, cast(int)stars[i].y, 1.0, stars[i].color);
+            }
         }
 
-        // Draw "2" logo - fades in after main logo arrives
-        if (state >= TitleScreenState.LOGO2_FADING_IN && titleLogo2Texture.id != 0 && titleLogoTexture.id != 0) {
-            // Calculate position relative to the main logo (centered horizontally, slightly below)
-            float logo2PosX = titleLogoPos.x + (titleLogoTexture.width / 2.0f) - (titleLogo2Texture.width / 2.0f);
-            float logo2PosY = titleLogoPos.y + titleLogoTexture.height - 40; // Adjust Y offset as needed
-            Vector2 logo2Pos = Vector2(logo2PosX, logo2PosY); 
-            DrawTextureV(titleLogo2Texture, logo2Pos, ColorAlpha(Colors.WHITE, logo2Alpha));
+        // Draw planet
+        float planetScale = 1.5f; // Example scale factor
+        DrawTexturePro(planetTexture, Rectangle(0, 0, planetTexture.width, planetTexture.height), 
+            Rectangle(planetPosition.x, planetPosition.y, planetTexture.width * planetScale, planetTexture.height * planetScale), Vector2(0, 0), 0.0f, Colors.WHITE);
+        
+        // Draw logo
+        if (logoAnimationStarted) {
+            DrawTexturePro(logoTexture, Rectangle(0, 0, logoTexture.width, logoTexture.height), 
+                Rectangle(logoPosition.x, logoPosition.y, logoTexture.width, logoTexture.height), Vector2(0, 0), 0.0f, Colors.WHITE);
         }
+        
+        // Draw background
+        DrawTexturePro(backgroundTexture, Rectangle(0, 0, backgroundTexture.width, backgroundTexture.height), 
+            Rectangle(0, 0, GetScreenWidth(), GetScreenHeight()), Vector2(0, 0), 0.0f, Colors.WHITE);
 
-        // Draw "Click Here" bar - fades in last
-        if (state >= TitleScreenState.LOADER_FADING_IN && currentClickTexture.id != 0) {
-            DrawTextureRec(
-                currentClickTexture, 
-                Rectangle(0, 0, currentClickTexture.width, currentClickTexture.height), // Source rect
-                Vector2(clickHereBounds.x, clickHereBounds.y), // Position
-                ColorAlpha(Colors.WHITE, loaderAlpha) // Tint with fade alpha
+        // Draw click button with scale-in effect
+        if (buttonScale.x > 0.0f) {
+            Color buttonColor = Colors.WHITE;
+            DrawTexturePro(
+                buttonTexture,
+                Rectangle(0, 0, buttonTexture.width, buttonTexture.height),
+                Rectangle(
+                    buttonPosition.x,
+                    buttonPosition.y,
+                    buttonTexture.width * buttonScale.x,
+                    buttonTexture.height * buttonScale.y
+                ),
+                Vector2(0, 0),
+                0.0f,
+                buttonColor
             );
+            
+            // DEBUG: Print button position and scale info once per second
+            static float debugTimer = 0.0f;
+            debugTimer += GetFrameTime();
+            if (debugTimer >= 1.0f) {
+                debugTimer = 0.0f;
+                writeln("Button DEBUG - Scale: ", buttonScale, " Position: ", buttonPosition);
+                writeln("Button Texture - Width: ", buttonTexture.width, " Height: ", buttonTexture.height);
+                writeln("Logo position: ", logoPosition, " Target: ", logoTargetY, " FadeComplete: ", fadeInComplete);
+                writeln("Button delay timer: ", buttonAppearDelayTimer);
+            }
+        }
+        else {
+            // DEBUG: Print why button is not being drawn
+            static float noButtonTimer = 0.0f;
+            noButtonTimer += GetFrameTime();
+            if (noButtonTimer >= 2.0f) {
+                noButtonTimer = 0.0f;
+                writeln("Button not drawn. Scale: ", buttonScale);
+                writeln("Logo reached target: ", (logoPosition.y <= logoTargetY));
+                writeln("Fade complete: ", fadeInComplete);
+                writeln("Button delay: ", buttonAppearDelayTimer);
+            }
         }
 
-        // If just fading in (before logo appears), fade the whole screen from black
-        if (state == TitleScreenState.FADING_IN) {
-            DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), ColorAlpha(Colors.BLACK, 1.0f - currentAlpha));
+        // Draw the actual logo2 texture if the fade is complete
+        if (fadeInComplete) {
+            DrawTexturePro(logo2Texture, Rectangle(0, 0, logo2Texture.width, logo2Texture.height), 
+                Rectangle(logo2Position.x, logo2Position.y, logo2Texture.width, logo2Texture.height), Vector2(0, 0), 0.0f, Colors.WHITE);
+        }
+
+        // Draw the whitened logo2 texture
+        DrawTextureEx(whitenedLogo2Texture, 
+            logo2Position, 
+            0.0f, 1.0f, 
+            Color(255, 255, 255, cast(uint8_t)(255 * whitenedLogo2Alpha)));
+
+        // Draw fade from black overlay last so it covers everything
+        if (screenFadeAlpha > 0.0f) {
+            DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), 
+                         Fade(Colors.BLACK, screenFadeAlpha));
+        }
+
+        // Draw the button (change to hovered texture if mouse is over it)
+        Vector2 mousePos = GetMousePosition();
+        Rectangle buttonRect = Rectangle(
+            buttonPosition.x, 
+            buttonPosition.y, 
+            buttonTexture.width * buttonScale.x, 
+            buttonTexture.height * buttonScale.y
+        );
+        if (buttonScale.x > 0.0f && CheckCollisionPointRec(mousePos, buttonRect)) {
+            // Draw hovered button texture
+            Color buttonColor = Colors.WHITE;
+            DrawTexturePro(
+                buttonHoveredTexture,
+                Rectangle(0, 0, buttonHoveredTexture.width, buttonHoveredTexture.height),
+                Rectangle(
+                    buttonPosition.x,
+                    buttonPosition.y,
+                    buttonHoveredTexture.width * buttonScale.x,
+                    buttonHoveredTexture.height * buttonScale.y
+                ),
+                Vector2(0, 0),
+                0.0f,
+                buttonColor
+            );
         }
     }
 
     void unload() {
-        if (state == TitleScreenState.UNINITIALIZED) {
-            writeln("TitleScreen not initialized. Cannot unload.");
-            return;
+        // Unload textures
+        UnloadTexture(backgroundTexture);
+        UnloadTexture(logoTexture);
+        UnloadTexture(logoAlpha);
+        UnloadTexture(logo2Texture);
+        UnloadTexture(logo2Alpha);
+        UnloadTexture(buttonTexture);
+        UnloadTexture(buttonAlpha);
+        UnloadTexture(sparkleTexture);
+        UnloadTexture(planetTexture);
+        UnloadTexture(planetAlpha);
+
+        // Unload sparkle frame textures
+        for (int i = 0; i < sparkleFrameTextures.length; i++) {
+            UnloadTexture(sparkleFrameTextures[i]);
         }
-        writeln("Unloading TitleScreen...");
-        // Resources are managed by MemoryManager, no manual texture unloading needed.
+
+        // Unload sounds
+        UnloadSound(welcomeSound);
+        UnloadSound(welcomeBackSound);
+        UnloadSound(menuClickSound);
+        UnloadSound(menuClick2Sound);
+        UnloadSound(mainMenuMouseOverSound);
+        UnloadSound(mainMenuMouseClickSound);
+        UnloadSound(mainMenuMouseOffSound);
+        UnloadSound(click2Sound);
+        UnloadSound(mainMenuGameStartSound);
+
         // Reset state
-        state = TitleScreenState.UNINITIALIZED;
-        // Reset variables
-        fadeInTimer = 0.0f;
-        logoFlyInTimer = 0.0f;
-        logo2FadeInTimer = 0.0f;
-        loaderFadeInTimer = 0.0f;
-        currentAlpha = 0.0f;
-        logo2Alpha = 0.0f;
-        loaderAlpha = 0.0f;
-        isMouseOverClickHere = false;
-        writeln("TitleScreen unloaded successfully.");
+        state = TitleState.LOGO;
     }
+    
 }

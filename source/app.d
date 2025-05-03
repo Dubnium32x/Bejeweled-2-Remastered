@@ -22,7 +22,7 @@ Font continuumLight;
 Font continuumMedium;
 Font cristal;
 Font quincy;
-Font[] fontFamily;
+public Font[] fontFamily;
 
 void main() {
     InitWindow(1280, 720, "Bejeweled 2 Remastered");
@@ -67,14 +67,36 @@ void main() {
     // audioManager.loadSound("resources/audio/vox/welcome.ogg", AudioType.VOX);
 
     // start main game loop
+    // Use the existing audioManager and screenManager variables
+    float lastTime = 0;
+    float currentTime = 0;
+    float frameTime = 0;
+
     while(!WindowShouldClose()) {
+        // Calculate frame time for performance monitoring
+        currentTime = GetTime();
+        frameTime = currentTime - lastTime;
+        lastTime = currentTime;
+        
+        // Check for severe slowdown
+        if (frameTime > 0.1f) { // More than 100ms per frame = less than 10 FPS
+            writeln("Performance warning: Frame time: ", frameTime * 1000, " ms");
+        }
+        
         BeginDrawing();
         ClearBackground(Colors.RAYWHITE);
 
+        // Update the audio manager to handle music updates
+        audioManager.update();
+        
         // Update the current screen
-        ScreenManager.getInstance().update(GetFrameTime());
+        screenManager.update(GetFrameTime());
         // Draw the current screen
-        ScreenManager.getInstance().draw();
+        screenManager.draw();
+        
+        // Optional: Display FPS in debug mode
+        DrawFPS(10, 10);
+        
         EndDrawing();
     }
 }

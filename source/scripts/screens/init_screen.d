@@ -16,6 +16,7 @@ import world.screen_manager;
 import world.memory_manager;
 import world.audio_manager;
 import world.screen_states;
+import app;
 
 // ---- LOCAL VARIABLES ----
 Texture popcapTexture;
@@ -259,11 +260,15 @@ class InitScreen : IScreen {
         
         // Draw "Original game by" text above the logo
         string originalByText = "Original game by:";
-        DrawText(
+        DrawTextEx(
+            fontFamily[2],
             originalByText.toStringz(),
-            (GetScreenWidth() - MeasureText(originalByText.toStringz(), 24)) / 2,
-            (GetScreenHeight() - popcapTexture.height) / 2 - 30, // Position text above the logo
-            24,
+            Vector2(
+                (GetScreenWidth() - MeasureTextEx(fontFamily[2], originalByText.toStringz(), 20, 1.0f).x) / 2,
+                (GetScreenHeight() - popcapTexture.height) / 2 - 20 // Centered horizontally and positioned slightly above the logo
+            ),
+            20,
+            1.0f, // Spacing between characters
             fadeColor
         );
     }

@@ -30,6 +30,7 @@ class AudioSettings {
     bool isSFXEnabled;
     bool isVoxEnabled;
     bool isAmbienceEnabled;
+    float masterVolume;
     float musicVolume;
     float sfxVolume;
     float voxVolume;
@@ -42,6 +43,7 @@ class AudioSettings {
         isSFXEnabled = true; // Default SFX setting
         isVoxEnabled = true; // Default VOX setting
         isAmbienceEnabled = true; // Default Ambience setting
+        masterVolume = 1.0; // Default master volume (full)
         musicVolume = 0.5; // Default music volume
         sfxVolume = 0.5; // Default SFX volume
         voxVolume = 0.5; // Default VOX volume
@@ -74,6 +76,7 @@ class AudioSettings {
                 if ("isSFXEnabled" in jsonData) isSFXEnabled = jsonData["isSFXEnabled"].boolean;
                 if ("isVoxEnabled" in jsonData) isVoxEnabled = jsonData["isVoxEnabled"].boolean;
                 if ("isAmbienceEnabled" in jsonData) isAmbienceEnabled = jsonData["isAmbienceEnabled"].boolean;
+                if ("masterVolume" in jsonData) masterVolume = jsonData["masterVolume"].floating;
                 if ("musicVolume" in jsonData) musicVolume = jsonData["musicVolume"].floating;
                 if ("sfxVolume" in jsonData) sfxVolume = jsonData["sfxVolume"].floating;
                 if ("voxVolume" in jsonData) voxVolume = jsonData["voxVolume"].floating;
@@ -107,6 +110,7 @@ class AudioSettings {
         jsonData["isSFXEnabled"] = isSFXEnabled;
         jsonData["isVoxEnabled"] = isVoxEnabled;
         jsonData["isAmbienceEnabled"] = isAmbienceEnabled;
+        jsonData["masterVolume"] = masterVolume;
         jsonData["musicVolume"] = musicVolume;
         jsonData["sfxVolume"] = sfxVolume;
         jsonData["voxVolume"] = voxVolume;
@@ -134,6 +138,7 @@ class AudioSettings {
                 isSFXEnabled = "isSFXEnabled" in jsonData ? jsonData["isSFXEnabled"].boolean : true;
                 isVoxEnabled = "isVoxEnabled" in jsonData ? jsonData["isVoxEnabled"].boolean : true;
                 isAmbienceEnabled = "isAmbienceEnabled" in jsonData ? jsonData["isAmbienceEnabled"].boolean : true;
+                masterVolume = "masterVolume" in jsonData ? jsonData["masterVolume"].floating : 1.0f;
                 musicVolume = "musicVolume" in jsonData ? jsonData["musicVolume"].floating : 0.5f;
                 sfxVolume = "sfxVolume" in jsonData ? jsonData["sfxVolume"].floating : 0.5f;
                 voxVolume = "voxVolume" in jsonData ? jsonData["voxVolume"].floating : 0.5f;
@@ -154,6 +159,7 @@ class AudioSettings {
         isSFXEnabled = true; // Default SFX setting
         isVoxEnabled = true; // Default VOX setting
         isAmbienceEnabled = true; // Default Ambience setting
+        masterVolume = 1.0; // Default master volume (full)
         musicVolume = 0.5; // Default music volume
         sfxVolume = 0.5; // Default SFX volume
         voxVolume = 0.5; // Default VOX volume

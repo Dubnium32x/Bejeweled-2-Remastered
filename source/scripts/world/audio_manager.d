@@ -31,6 +31,10 @@ class AudioManager {
     AudioSettings audioSettings;
     // Memory manager reference
     private MemoryManager memoryManager;
+
+    // Add a variable to track the currently playing music
+    private Music currentMusic;
+    private bool isMusicPlaying = false;
     
     this() {
         audioSettings = AudioSettings.getInstance();
@@ -68,10 +72,26 @@ class AudioManager {
         writeln("Audio device initialized successfully.");
     }
 
+    // Optimize music update with buffer management and better error handling
     void update() {
         // Update audio settings if needed
         if (audioSettings.state != AudioSettingsState.INITIALIZED) {
             initialize();
+        }
+        
+        // Update music stream with improved error handling
+        if (isMusicPlaying && currentMusic.ctxData != null) {
+            try {
+                UpdateMusicStream(currentMusic);
+                
+                // Check if music finished playing (non-looping music)
+                if (!IsMusicStreamPlaying(currentMusic)) {
+                    isMusicPlaying = false;
+                }
+            } catch (Exception e) {
+                writeln("Error updating music stream: ", e.msg);
+                isMusicPlaying = false;
+            }
         }
     }
     
@@ -126,20 +146,35 @@ class AudioManager {
             }
         }
         
+        // Scale volume based on settings
+        float scaledVolume = getScaledVolume(volume, audioType);
+        
         // Use MemoryManager to load and cache the sound
         if (audioType == AudioType.MUSIC) {
+            // Stop any currently playing music first
+            if (isMusicPlaying && currentMusic.ctxData != null) {
+                StopMusicStream(currentMusic);
+            }
+            
             Music music = memoryManager.loadMusic(filePath);
             if (music.ctxData == null) {
                 writeln("Failed to load music: ", filePath);
                 return false;
             }
-            SetMusicVolume(music, volume);
+            
+            // Store the current music for later updates
+            currentMusic = music;
+            isMusicPlaying = true;
+            
+            SetMusicVolume(music, scaledVolume);
             if (loop) {
                 PlayMusicStream(music);
             } else {
                 UpdateMusicStream(music);
                 PlayMusicStream(music);
             }
+            
+            writeln("Started playing music: ", filePath, " with volume ", scaledVolume);
             return true;
         } else {
             Sound sound = memoryManager.loadSound(filePath);
@@ -147,7 +182,7 @@ class AudioManager {
                 writeln("Failed to load sound: ", filePath);
                 return false;
             }
-            SetSoundVolume(sound, volume);
+            SetSoundVolume(sound, scaledVolume);
             PlaySound(sound);
             return IsSoundPlaying(sound);
         }
@@ -239,5 +274,33 @@ class AudioManager {
                 playSFX(filePath);
                 break;
         }
+    }
+
+    // Improved volume handling with proper scaling and clamping
+    private float getScaledVolume(float rawVolume, AudioType type) {
+        // Apply master volume scaling
+        float scaledVolume = rawVolume * audioSettings.masterVolume;
+        
+        // Apply type-specific volume scaling
+        final switch (type) {
+            case AudioType.SFX:
+                scaledVolume *= audioSettings.sfxVolume;
+                break;
+            case AudioType.MUSIC:
+                scaledVolume *= audioSettings.musicVolume;
+                break;
+            case AudioType.VOX:
+                scaledVolume *= audioSettings.voxVolume;
+                break;
+            case AudioType.AMBIENCE:
+                scaledVolume *= audioSettings.ambienceVolume;
+                break;
+        }
+        
+        // Clamp volume between 0.0 and 1.0
+        if (scaledVolume < 0.0f) scaledVolume = 0.0f;
+        if (scaledVolume > 1.0f) scaledVolume = 1.0f;
+        
+        return scaledVolume;
     }
 }
