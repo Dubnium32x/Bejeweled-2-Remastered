@@ -36,6 +36,9 @@ Texture planetTexture;
 Texture planetAlpha;
 Texture whitenedLogo2Texture;
 
+Texture mistBackgroundTexture;
+Texture mistForegroundTexture;
+
 // Menu button textures
 Texture classicTexture;
 Texture classicAlpha;
@@ -168,7 +171,7 @@ class TitleScreen : IScreen {
     private float buttonFadeOutAlpha = 1.0f;
     
     // Menu UI text elements
-    static string saveNameText = "Player"; // Will be populated conditionally
+    static string saveNameText = "Christina"; // Will be populated conditionally
     private string selectGameModeText = "Select a game mode.";
     private string welcomeText; // Will be set in constructor or initialize
     private string originalGameText = "THE ORIGINAL\nUNTIMED GAME";
@@ -654,7 +657,7 @@ class TitleScreen : IScreen {
         }
 
         // Update position of planet
-        planetPosition.y -= 2.5f * deltaTime; // Move planet downwards
+        planetPosition.y -= 0.75f * deltaTime; // Move planet downwards
         if (planetPosition.y > GetScreenHeight()) {
             planetPosition.y = -planetTexture.height; // Reset position when it goes off screen
         }
