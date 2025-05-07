@@ -22,7 +22,8 @@ Font continuumLight;
 Font continuumMedium;
 Font cristal;
 Font quincy;
-public Font[] fontFamily;
+// Use __gshared to ensure proper sharing across modules
+__gshared Font[] fontFamily;
 
 void main() {
     InitWindow(1280, 720, "Bejeweled 2 Remastered");
