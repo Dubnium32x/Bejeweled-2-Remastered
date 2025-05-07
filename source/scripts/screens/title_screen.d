@@ -512,14 +512,14 @@ class TitleScreen : IScreen {
         logo2FadeInTimer += deltaTime;
 
         if (!fadeInComplete && logo2FadeInTimer >= 2.0f && whitenedLogo2Alpha < 1.0f) {
-            whitenedLogo2Alpha += deltaTime * 0.75f; // Fade in over 2 seconds
+            whitenedLogo2Alpha += deltaTime * 3.0f; // Fade in over 2 seconds
             if (whitenedLogo2Alpha >= 1.0f) {
                 whitenedLogo2Alpha = 1.0f; // Clamp to max alpha
                 fadeInComplete = true;
             }
         }
-        else if (fadeInComplete && logo2FadeInTimer >= 3.0f) {
-            whitenedLogo2Alpha -= deltaTime * 0.75f; // Fade out after 3 seconds
+        else if (fadeInComplete && logo2FadeInTimer >= 2.4f) {
+            whitenedLogo2Alpha -= deltaTime * 3.0f; // Fade out after 3 seconds
             if (whitenedLogo2Alpha <= 0.0f) {
                 whitenedLogo2Alpha = 0.0f; // Clamp to min alpha
             }
