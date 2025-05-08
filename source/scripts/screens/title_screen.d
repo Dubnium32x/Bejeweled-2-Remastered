@@ -275,32 +275,55 @@ class TitleScreen : IScreen {
         audioManager = AudioManager.getInstance();
         // Load textures
         backgroundTexture = LoadTexture("resources/image/backdrops/backdrop_title_A.png");
+        SetTextureFilter(backgroundTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         logoTexture = LoadTexture("resources/image/title_logo.png");
+        SetTextureFilter(logoTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         logoAlpha = LoadTexture("resources/image/title_logo_.png");
+        SetTextureFilter(logoAlpha, TextureFilter.TEXTURE_FILTER_BILINEAR);
         logo2Texture = LoadTexture("resources/image/title_logo2.png");
+        SetTextureFilter(logo2Texture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         logo2Alpha = LoadTexture("resources/image/title_logo2_.png");
+        SetTextureFilter(logo2Alpha, TextureFilter.TEXTURE_FILTER_BILINEAR);
         buttonTexture = LoadTexture("resources/image/title_loaderbar_clickhere.png");
+        SetTextureFilter(buttonTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         buttonHoveredTexture = LoadTexture("resources/image/title_loaderbar_clickhere_over.png");
+        SetTextureFilter(buttonHoveredTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         buttonAlpha = LoadTexture("resources/image/title_loaderbarlit_.png");
+        SetTextureFilter(buttonAlpha, TextureFilter.TEXTURE_FILTER_BILINEAR);
         sparkleTexture = LoadTexture("resources/image/sparkle.png");
+        SetTextureFilter(sparkleTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         planetTexture = LoadTexture("resources/image/planet1.png");
+        SetTextureFilter(planetTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         planetAlpha = LoadTexture("resources/image/planet1_.png");
+        SetTextureFilter(planetAlpha, TextureFilter.TEXTURE_FILTER_BILINEAR);
         menuGadgetsTexture = LoadTexture("resources/image/Menu-Gadgets.png");
+        SetTextureFilter(menuGadgetsTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         menuGadgetsAlpha = LoadTexture("resources/image/Menu-Gadgets_.png");
+        SetTextureFilter(menuGadgetsAlpha, TextureFilter.TEXTURE_FILTER_BILINEAR);
 
         // PATCH: Load mist textures
         mistBackgroundTexture = LoadTexture("resources/image/mist_background.png");
+        SetTextureFilter(mistBackgroundTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         mistForegroundTexture = LoadTexture("resources/image/mist.png");
+        SetTextureFilter(mistForegroundTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         
         // Load menu button textures
         classicTexture = LoadTexture("resources/image/Classic.png");
+        SetTextureFilter(classicTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         classicAlpha = LoadTexture("resources/image/Classic_.png");
+        SetTextureFilter(classicAlpha, TextureFilter.TEXTURE_FILTER_BILINEAR);
         actionTexture = LoadTexture("resources/image/Action.png");
+        SetTextureFilter(actionTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         actionAlpha = LoadTexture("resources/image/Action_.png");
+        SetTextureFilter(actionAlpha, TextureFilter.TEXTURE_FILTER_BILINEAR);
         endlessTexture = LoadTexture("resources/image/Endless.png");
+        SetTextureFilter(endlessTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         endlessAlpha = LoadTexture("resources/image/Endless_.png");
+        SetTextureFilter(endlessAlpha, TextureFilter.TEXTURE_FILTER_BILINEAR);
         puzzleTexture = LoadTexture("resources/image/Puzzle.png");
+        SetTextureFilter(puzzleTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         puzzleAlpha = LoadTexture("resources/image/Puzzle_.png");
+        SetTextureFilter(puzzleAlpha, TextureFilter.TEXTURE_FILTER_BILINEAR);
 
         // Initialize state
         state = TitleState.LOGO;
@@ -401,39 +424,47 @@ class TitleScreen : IScreen {
         // Apply alpha mapping to logo textures
         ImageAlphaMask(&logoImage, logoAlphaImage);
         logoTexture = LoadTextureFromImage(logoImage);
+        SetTextureFilter(logoTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         // UnloadImage(logoAlphaImage); // Commented out to avoid double free
         // Apply alpha mapping to logo2 textures
         ImageAlphaMask(&logo2Image, logo2AlphaImage);
         logo2Texture = LoadTextureFromImage(logo2Image);
+        SetTextureFilter(logo2Texture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         // UnloadImage(logo2AlphaImage); // Commented out to avoid double free
         // Apply alpha mapping to button textures
         ImageAlphaMask(&buttonImage, buttonAlphaImage);
         buttonTexture = LoadTextureFromImage(buttonImage);
+        SetTextureFilter(buttonTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         // UnloadImage(buttonAlphaImage); // Commented out to avoid double free
         
         // Apply alpha mapping to button hovered texture
         Image buttonHoveredImage = LoadImageFromTexture(buttonHoveredTexture);
         ImageAlphaMask(&buttonHoveredImage, buttonAlphaImage);
         buttonHoveredTexture = LoadTextureFromImage(buttonHoveredImage);
+        SetTextureFilter(buttonHoveredTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         UnloadImage(buttonHoveredImage);
         // Apply alpha mapping to planet textures
         ImageAlphaMask(&planetImage, planetAlphaImage);
         planetTexture = LoadTextureFromImage(planetImage);
+        SetTextureFilter(planetTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         // UnloadImage(planetAlphaImage); // Commented out to avoid double free
         // Apply alpha mapping to sparkle textures
         Image sparkleImage = LoadImageFromTexture(sparkleTexture);
         Image sparkleAlphaImage = LoadImageFromTexture(sparkleTexture);
         ImageAlphaMask(&sparkleImage, sparkleAlphaImage);
         sparkleTexture = LoadTextureFromImage(sparkleImage);
+        SetTextureFilter(sparkleTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         // UnloadImage(sparkleAlphaImage); // Commented out to avoid double free
         // Apply alpha mapping to whitened logo2 texture
         Image whitenedLogo2Image = LoadImageFromTexture(logo2Alpha);
         ImageAlphaMask(&whitenedLogo2Image, whitenedLogo2Image);
         whitenedLogo2Texture = LoadTextureFromImage(whitenedLogo2Image);
+        SetTextureFilter(whitenedLogo2Texture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         // UnloadImage(whitenedLogo2Image); // Commented out to avoid double free
         // Apply alpha mapping to menu gadgets texture
         ImageAlphaMask(&menuGadgetsImage, menuGadgetsAlphaImage);
         menuGadgetsTexture = LoadTextureFromImage(menuGadgetsImage);
+        SetTextureFilter(menuGadgetsTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         UnloadImage(menuGadgetsImage); // Unload original image
         UnloadImage(menuGadgetsAlphaImage); // Unload alpha image
         
@@ -442,6 +473,7 @@ class TitleScreen : IScreen {
         Image classicAlphaImage = LoadImageFromTexture(classicAlpha);
         ImageAlphaMask(&classicImage, classicAlphaImage);
         classicTexture = LoadTextureFromImage(classicImage);
+        SetTextureFilter(classicTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         UnloadImage(classicImage);
         UnloadImage(classicAlphaImage);
         
@@ -449,6 +481,7 @@ class TitleScreen : IScreen {
         Image actionAlphaImage = LoadImageFromTexture(actionAlpha);
         ImageAlphaMask(&actionImage, actionAlphaImage);
         actionTexture = LoadTextureFromImage(actionImage);
+        SetTextureFilter(actionTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         UnloadImage(actionImage);
         UnloadImage(actionAlphaImage);
         
@@ -456,6 +489,7 @@ class TitleScreen : IScreen {
         Image endlessAlphaImage = LoadImageFromTexture(endlessAlpha);
         ImageAlphaMask(&endlessImage, endlessAlphaImage);
         endlessTexture = LoadTextureFromImage(endlessImage);
+        SetTextureFilter(endlessTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         UnloadImage(endlessImage);
         UnloadImage(endlessAlphaImage);
         
@@ -463,6 +497,7 @@ class TitleScreen : IScreen {
         Image puzzleAlphaImage = LoadImageFromTexture(puzzleAlpha);
         ImageAlphaMask(&puzzleImage, puzzleAlphaImage);
         puzzleTexture = LoadTextureFromImage(puzzleImage);
+        SetTextureFilter(puzzleTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         UnloadImage(puzzleImage);
         UnloadImage(puzzleAlphaImage);
     }
@@ -496,6 +531,7 @@ class TitleScreen : IScreen {
             
             // Create texture from the alpha-mapped image
             sparkleFrameTextures[i] = LoadTextureFromImage(croppedImage);
+            SetTextureFilter(sparkleFrameTextures[i], TextureFilter.TEXTURE_FILTER_BILINEAR);
             
             // We can unload the alpha image since we're done with it
             UnloadImage(croppedAlpha);
