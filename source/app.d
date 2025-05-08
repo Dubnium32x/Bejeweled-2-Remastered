@@ -133,7 +133,7 @@ void main() {
         
         // --- DRAW VIRTUAL SCREEN TO ACTUAL WINDOW ---
         BeginDrawing();
-            ClearBackground(Colors.BLANK); // Clear letterbox/pillarbox area
+            ClearBackground(Colors.BLACK); // Clear letterbox/pillarbox area to black
 
             // Calculate scale to fit virtual screen into actual screen, maintaining aspect ratio
             float scale = min(cast(float)GetScreenWidth() / VIRTUAL_SCREEN_WIDTH, 
@@ -149,7 +149,9 @@ void main() {
             Rectangle destRec = Rectangle(destX, destY, VIRTUAL_SCREEN_WIDTH * scale, VIRTUAL_SCREEN_HEIGHT * scale);
             Vector2 origin = Vector2(0, 0); // Top-left origin
 
+            BeginBlendMode(BlendMode.BLEND_ALPHA_PREMULTIPLY);
             DrawTexturePro(virtualScreen.texture, sourceRec, destRec, origin, 0.0f, Colors.WHITE);
+            EndBlendMode();
             
             // Optional: Display FPS in debug mode (drawn on top of the scaled virtual screen)
             DrawFPS(10, 10);
