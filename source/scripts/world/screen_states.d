@@ -41,3 +41,10 @@ enum GameplayMode {
     FINITY,
     ORIGINAL
 }
+
+enum Resolution {
+    RES_720P,
+    RES_1080P,
+    RES_1440P,
+    RES_4K
+}

@@ -185,3 +185,26 @@ class PauseMenu : IScreen {
         writeln("Pause Menu unloaded.");
     }
 }
+
+class ResolutionManager {
+    // Singleton instance
+    static ResolutionManager instance;
+
+    // Current resolution
+    Resolution currentResolution;
+
+    this() {
+        instance = this;
+        currentResolution = Resolution.RES_1080P; // Default resolution
+    }
+
+    static ResolutionManager getInstance() {
+        return instance;
+    }
+
+    void setResolution(Resolution resolution) {
+        currentResolution = resolution;
+        // Apply the resolution change (this is a placeholder)
+        writeln("Resolution changed to: ", resolution);
+    }
+}

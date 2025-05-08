@@ -64,8 +64,7 @@ void main() {
     // Set the initial screen state using the appropriate method
     screenManager.changeState(ScreenState.INIT);
 
-    // DEBUG play a voice sample
-    // audioManager.loadSound("resources/audio/vox/welcome.ogg", AudioType.VOX);
+    // Load the screen
 
     // start main game loop
     // Use the existing audioManager and screenManager variables

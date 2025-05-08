@@ -39,6 +39,13 @@ Texture whitenedLogo2Texture;
 Texture mistBackgroundTexture;
 Texture mistForegroundTexture;
 
+// Mist scroll offsets
+float mistBackgroundOffsetX = 0.0f;
+float mistForegroundOffsetX = 0.0f;
+// Mist scroll speeds (pixels per second)
+float mistBackgroundScrollSpeed = 20.0f; // left
+float mistForegroundScrollSpeed = 30.0f; // right
+
 // Menu button textures
 Texture classicTexture;
 Texture classicAlpha;
@@ -74,6 +81,9 @@ Vector2 logoPosition;
 Vector2 logo2Position;
 Vector2 buttonPosition;
 Vector2 planetPosition;
+
+// Define the scale for all textures (for resolution independence)
+float textureScale = 1.0f;
 
 // Add variables for logo animation
 float logoTargetY = 0.0f;  // Target Y position for the logo
@@ -211,6 +221,9 @@ class TitleScreen : IScreen {
             "resources/image/backdrops/backdrop_title_A.png",
             "resources/image/planet1.png",
             "resources/image/planet1_.png", // alpha
+            // PATCH: Add mist textures
+            "resources/image/mist_background.png",
+            "resources/image/mist.png",
             // Textures for the main menu
             "resources/image/Menu-Gadgets.png",
             "resources/image/Menu-Gadgets_.png", // alpha
@@ -260,7 +273,6 @@ class TitleScreen : IScreen {
     void initialize() {
         memoryManager = MemoryManager.instance();
         audioManager = AudioManager.getInstance();
-
         // Load textures
         backgroundTexture = LoadTexture("resources/image/backdrops/backdrop_title_A.png");
         logoTexture = LoadTexture("resources/image/title_logo.png");
@@ -275,6 +287,10 @@ class TitleScreen : IScreen {
         planetAlpha = LoadTexture("resources/image/planet1_.png");
         menuGadgetsTexture = LoadTexture("resources/image/Menu-Gadgets.png");
         menuGadgetsAlpha = LoadTexture("resources/image/Menu-Gadgets_.png");
+
+        // PATCH: Load mist textures
+        mistBackgroundTexture = LoadTexture("resources/image/mist_background.png");
+        mistForegroundTexture = LoadTexture("resources/image/mist.png");
         
         // Load menu button textures
         classicTexture = LoadTexture("resources/image/Classic.png");
@@ -326,7 +342,7 @@ class TitleScreen : IScreen {
         // Initialize positions
         logoTargetY = (GetScreenHeight() - logoTexture.height) / 8;
         logoStartY = GetScreenHeight() + 50.0f; // Start below screen
-        logoPosition = Vector2((GetScreenWidth() - logoTexture.width) / 2.0f, GetScreenHeight()); // Start below screen
+        logoPosition = Vector2((GetScreenWidth() - logoTexture.width) / 2.0f + (16 * textureScale), GetScreenHeight()); // Start below screen
         logo2Position = Vector2((GetScreenWidth() - logo2Texture.width) / 2.0f, (GetScreenHeight() - logo2Texture.height) / 3.0f);
         buttonPosition = Vector2((GetScreenWidth() - buttonTexture.width) / 2.0f, GetScreenHeight() - buttonTexture.height - 50.0f);
         planetPosition = Vector2(GetScreenWidth() - (planetTexture.width / (3.0/2.0)), GetScreenHeight() - planetTexture.height);
@@ -490,6 +506,9 @@ class TitleScreen : IScreen {
     }
 
     void update(float deltaTime) {
+        // Update the texture scale based on the screen size
+        // This should be done in the initialize method
+
         // Handle title elements moving off screen
         if (titleElementsMovingOff) {
             bool logoOffScreen = false;
@@ -994,6 +1013,18 @@ class TitleScreen : IScreen {
                 }
             }
         }
+
+        // --- MIST SCROLLING ---
+        // Scroll background mist left
+        mistBackgroundOffsetX -= mistBackgroundScrollSpeed * deltaTime;
+        if (mistBackgroundOffsetX <= -mistBackgroundTexture.width) {
+            mistBackgroundOffsetX += mistBackgroundTexture.width;
+        }
+        // Scroll foreground mist right
+        mistForegroundOffsetX += mistForegroundScrollSpeed * deltaTime;
+        if (mistForegroundOffsetX >= mistForegroundTexture.width) {
+            mistForegroundOffsetX -= mistForegroundTexture.width;
+        }
     }
 
     void draw() {
@@ -1032,6 +1063,24 @@ class TitleScreen : IScreen {
         Rectangle planetDestRec = Rectangle(planetPosition.x, planetPosition.y, planetTexture.width * planetScale, planetTexture.height * planetScale);
         DrawTexturePro(planetTexture, Rectangle(0, 0, planetTexture.width, planetTexture.height), planetDestRec, Vector2(0,0), 0.0f, Colors.WHITE);
 
+        // Draw mist background (scrolling left, behind backdrop, in front of planet)
+        if (mistBackgroundTexture.id != 0) {
+            float mistY = 0;
+            float mistW = mistBackgroundTexture.width;
+            float mistH = mistBackgroundTexture.height;
+            // Draw enough to cover the screen (repeat horizontally)
+            for (float x = mistBackgroundOffsetX; x < GetScreenWidth(); x += mistW) {
+                DrawTexturePro(
+                    mistBackgroundTexture,
+                    Rectangle(0, 0, mistW, mistH),
+                    Rectangle(x, mistY, mistW, mistH),
+                    Vector2(0, GetScreenHeight() / -2.0f), 
+                    0.0f,
+                    Colors.WHITE
+                );
+            }
+        }
+
         // Draw logo (only if not moving off or if still on screen)
         if (logoAnimationStarted && logoPosition.y < GetScreenHeight()) {
             DrawTexturePro(logoTexture, Rectangle(0, 0, logoTexture.width, logoTexture.height), 
@@ -1041,6 +1090,23 @@ class TitleScreen : IScreen {
         // Draw background
         DrawTexturePro(backgroundTexture, Rectangle(0, 0, backgroundTexture.width, backgroundTexture.height), 
             Rectangle(0, 0, GetScreenWidth(), GetScreenHeight()), Vector2(0, 0), 0.0f, Colors.WHITE);
+
+        // Draw mist foreground (scrolling right, in front of backdrop)
+        if (mistForegroundTexture.id != 0) {
+            float mistY = 0;
+            float mistW = mistForegroundTexture.width;
+            float mistH = mistForegroundTexture.height;
+            for (float x = mistForegroundOffsetX - mistW; x < GetScreenWidth(); x += mistW) {
+                DrawTexturePro(
+                    mistForegroundTexture,
+                    Rectangle(0, 0, mistW, mistH),
+                    Rectangle(x, mistY, mistW, mistH),
+                    Vector2(0, GetScreenHeight() / -2.0f),
+                    0.0f,
+                    Colors.WHITE
+                );
+            }
+        }
 
         // Draw click button with scale-in effect
         if (buttonScale.x > 0.0f) {
