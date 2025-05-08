@@ -19,8 +19,9 @@ import world.memory_manager;
 import world.audio_manager;
 import world.screen_states;
 import app; // Import the app module directly
+import app : VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT; // Specifically import the constants
 
-// No need to redeclare fontFamily, it's already imported from app module
+// No need to redeclare fontFamily, it\'s already imported from app module
 
 // ---- LOCAL VARIABLES ----
 Texture backgroundTexture;
@@ -116,9 +117,9 @@ struct Star {
     // ---- STAR FIELD ----
     void update(float deltaTime) {
         y -= speed * deltaTime;
-        if (y > GetScreenHeight()) {
+        if (y > VIRTUAL_SCREEN_HEIGHT) { // Changed from GetScreenHeight()
             y = 0.0f;
-            x = uniform(0, GetScreenWidth());
+            x = uniform(0, VIRTUAL_SCREEN_WIDTH); // Changed from GetScreenWidth()
         }
     }
 }
@@ -363,22 +364,22 @@ class TitleScreen : IScreen {
         sliceSparkleTextures();
 
         // Initialize positions
-        logoTargetY = (GetScreenHeight() - logoTexture.height) / 8;
-        logoStartY = GetScreenHeight() + 50.0f; // Start below screen
-        logoPosition = Vector2((GetScreenWidth() - logoTexture.width) / 2.0f + (16 * textureScale), GetScreenHeight()); // Start below screen
-        logo2Position = Vector2((GetScreenWidth() - logo2Texture.width) / 2.0f, (GetScreenHeight() - logo2Texture.height) / 3.0f);
-        buttonPosition = Vector2((GetScreenWidth() - buttonTexture.width) / 2.0f, GetScreenHeight() - buttonTexture.height - 50.0f);
-        planetPosition = Vector2(GetScreenWidth() - (planetTexture.width / (3.0/2.0)), GetScreenHeight() - planetTexture.height);
+        logoTargetY = (VIRTUAL_SCREEN_HEIGHT - logoTexture.height) / 8; // Changed
+        logoStartY = VIRTUAL_SCREEN_HEIGHT + 50.0f; // Start below screen // Changed
+        logoPosition = Vector2((VIRTUAL_SCREEN_WIDTH - logoTexture.width) / 2.0f + (16 * textureScale), VIRTUAL_SCREEN_HEIGHT); // Start below screen // Changed
+        logo2Position = Vector2((VIRTUAL_SCREEN_WIDTH - logo2Texture.width) / 2.0f, (VIRTUAL_SCREEN_HEIGHT - logo2Texture.height) / 3.0f); // Changed
+        buttonPosition = Vector2((VIRTUAL_SCREEN_WIDTH - buttonTexture.width) / 2.0f, VIRTUAL_SCREEN_HEIGHT - buttonTexture.height - 50.0f); // Changed
+        planetPosition = Vector2(VIRTUAL_SCREEN_WIDTH - (planetTexture.width / (3.0/2.0)), VIRTUAL_SCREEN_HEIGHT - planetTexture.height); // Changed
         buttonScale = Vector2(0, 0);
 
         // Initialize menu gadgets positions
-        menuGadgetsTargetY = (GetScreenHeight() - (menuGadgetsTexture.height * menuGadgetsScale)) / 2.0f; // Adjusted for scale
-        menuGadgetsStartY = GetScreenHeight(); // Start below screen
-        menuGadgetsPosition = Vector2((GetScreenWidth() - (menuGadgetsTexture.width * menuGadgetsScale)) / 2.0f, menuGadgetsStartY); // Adjusted for scale
+        menuGadgetsTargetY = (VIRTUAL_SCREEN_HEIGHT - (menuGadgetsTexture.height * menuGadgetsScale)) / 2.0f; // Adjusted for scale // Changed
+        menuGadgetsStartY = VIRTUAL_SCREEN_HEIGHT; // Start below screen // Changed
+        menuGadgetsPosition = Vector2((VIRTUAL_SCREEN_WIDTH - (menuGadgetsTexture.width * menuGadgetsScale)) / 2.0f, menuGadgetsStartY); // Adjusted for scale // Changed
         
         // Initialize menu button positions centered within menu gadgets texture
         // Calculate the center point of the menu gadgets
-        centerX = GetScreenWidth() / 2.0f;
+        centerX = VIRTUAL_SCREEN_WIDTH / 2.0f; // Changed
         centerY = menuGadgetsTargetY + (menuGadgetsTexture.height * menuGadgetsScale) / 2.0f;
         
         // Position buttons precisely to match the reference image
@@ -388,8 +389,8 @@ class TitleScreen : IScreen {
         
         // Position buttons horizontally to align with the circles - closer to center than before
         float halfWidth = (menuGadgetsTexture.width * menuGadgetsScale) / 2.0f;
-        float leftX = centerX - halfWidth * 0.48f;  // 48% from center to the left (for better alignment)
-        float rightX = centerX + halfWidth * 0.48f; // 48% from center to the right (for better alignment)
+        float leftX = centerX - halfWidth * 0.49f;  // 49% from center to the left (for better alignment)
+        float rightX = centerX + halfWidth * 0.49f; // 49% from center to the right (for better alignment)
 
         classicButtonPosition = Vector2(leftX, topRowY);
         actionButtonPosition = Vector2(rightX, topRowY);
@@ -602,7 +603,7 @@ class TitleScreen : IScreen {
                 titleElementsMovingOff = false;
                 menuGadgetsMovingOn = true;
                 // Ensure gadgets start from their off-screen position, adjusted for scale
-                menuGadgetsPosition = Vector2((GetScreenWidth() - (menuGadgetsTexture.width * menuGadgetsScale)) / 2.0f, menuGadgetsStartY);
+                menuGadgetsPosition = Vector2((VIRTUAL_SCREEN_WIDTH - (menuGadgetsTexture.width * menuGadgetsScale)) / 2.0f, menuGadgetsStartY); // Changed
                 state = TitleState.MAINMENU; // Transition to main menu state as gadgets start appearing
             }
         }
@@ -611,7 +612,7 @@ class TitleScreen : IScreen {
         if (menuGadgetsMovingOn) {
             // Define all positioning variables for use in both branches
             float offsetFromTarget = menuGadgetsPosition.y - menuGadgetsTargetY;
-            float centerX = GetScreenWidth() / 2.0f;
+            float centerX = VIRTUAL_SCREEN_WIDTH / 2.0f; // Changed
             float centerY;
             float topRowY;
             float bottomRowY;
@@ -627,9 +628,9 @@ class TitleScreen : IScreen {
                 topRowY = menuGadgetsPosition.y + menuGadgetsTexture.height * menuGadgetsScale * 0.22f; // Top row position
                 bottomRowY = menuGadgetsPosition.y + menuGadgetsTexture.height * menuGadgetsScale * 0.67f; // Aligned with purple orbs
                 halfWidth = (menuGadgetsTexture.width * menuGadgetsScale) / 2.0f;
-                leftX = centerX - halfWidth * 0.48f;  // 48% from center to the left for better alignment
-                rightX = centerX + halfWidth * 0.48f; // 48% from center to the right for better alignment
-                
+                leftX = centerX - halfWidth * 0.49f;  // 48% from center to the left for better alignment
+                rightX = centerX + halfWidth * 0.49f; // 48% from center to the right for better alignment
+
                 classicButtonPosition = Vector2(leftX, topRowY);
                 actionButtonPosition = Vector2(rightX, topRowY);
                 puzzleButtonPosition = Vector2(leftX, bottomRowY);
@@ -644,8 +645,8 @@ class TitleScreen : IScreen {
                     topRowY = menuGadgetsTargetY + menuGadgetsTexture.height * menuGadgetsScale * 0.22f; // Top row position
                     bottomRowY = menuGadgetsTargetY + menuGadgetsTexture.height * menuGadgetsScale * 0.67f; // Aligned with purple orbs
                     halfWidth = (menuGadgetsTexture.width * menuGadgetsScale) / 2.0f;
-                    leftX = centerX - halfWidth * 0.48f; // 48% from center for better alignment
-                    rightX = centerX + halfWidth * 0.48f; // 48% from center for better alignment
+                    leftX = centerX - halfWidth * 0.49f; // 48% from center for better alignment
+                    rightX = centerX + halfWidth * 0.49f; // 48% from center for better alignment
                     
                     classicButtonPosition = Vector2(leftX, topRowY);
                     actionButtonPosition = Vector2(rightX, topRowY);
@@ -661,8 +662,8 @@ class TitleScreen : IScreen {
                 topRowY = menuGadgetsTargetY + menuGadgetsTexture.height * menuGadgetsScale * 0.22f; // Top row position
                 bottomRowY = menuGadgetsTargetY + menuGadgetsTexture.height * menuGadgetsScale * 0.67f; // Aligned with purple orbs
                 halfWidth = (menuGadgetsTexture.width * menuGadgetsScale) / 2.0f;
-                leftX = centerX - halfWidth * 0.48f; // 48% from center for better alignment
-                rightX = centerX + halfWidth * 0.48f; // 48% from center for better alignment
+                leftX = centerX - halfWidth * 0.49f; // 48% from center for better alignment
+                rightX = centerX + halfWidth * 0.49f; // 48% from center for better alignment
                 
                 classicButtonPosition = Vector2(leftX, topRowY);
                 actionButtonPosition = Vector2(rightX, topRowY);
@@ -713,7 +714,7 @@ class TitleScreen : IScreen {
 
         // Update position of planet
         planetPosition.y -= 0.75f * deltaTime; // Move planet downwards
-        if (planetPosition.y > GetScreenHeight()) {
+        if (planetPosition.y > VIRTUAL_SCREEN_HEIGHT) { // Changed
             planetPosition.y = -planetTexture.height; // Reset position when it goes off screen
         }
         
@@ -802,16 +803,16 @@ class TitleScreen : IScreen {
                         buttonScale = Vector2(finalScale, finalScale);
                         
                         // Center button position based on scale
-                        buttonPosition.x = (GetScreenWidth() - buttonTexture.width * finalScale) / 2.0f;
-                        buttonPosition.y = GetScreenHeight() - buttonTexture.height * finalScale - 50.0f;
+                        buttonPosition.x = (VIRTUAL_SCREEN_WIDTH - buttonTexture.width * finalScale) / 2.0f; // Changed
+                        buttonPosition.y = VIRTUAL_SCREEN_HEIGHT - buttonTexture.height * finalScale - 50.0f; // Changed
                         
                         // Button click logic
                         if (buttonScale.x >= 0.9f && IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT)) {
-                            Vector2 mousePos = GetMousePosition();
+                            Vector2 mousePos = GetMousePositionVirtual(); // Changed
                             Rectangle buttonRect = Rectangle(
-                                buttonPosition.x, 
-                                buttonPosition.y, 
-                                buttonTexture.width * buttonScale.x, 
+                                buttonPosition.x,
+                                buttonPosition.y,
+                                buttonTexture.width * buttonScale.x,
                                 buttonTexture.height * buttonScale.y
                             );
                             if (CheckCollisionPointRec(mousePos, buttonRect)) {
@@ -839,7 +840,7 @@ class TitleScreen : IScreen {
                     // Waiting for animations to complete
                 } else {
                     // Main menu logic here - handle button hover states and clicks
-                    Vector2 mousePosition = GetMousePosition();
+                    Vector2 mousePosition = GetMousePositionVirtual(); // Changed
                     
                     // Reset hover states
                     classicButtonHovered = false;
@@ -1011,8 +1012,8 @@ class TitleScreen : IScreen {
             stars = new Star[starCount];
             for (int i = 0; i < starCount; i++) {
                 stars[i] = Star(
-                    x: uniform(0, GetScreenWidth()),
-                    y: uniform(0, GetScreenHeight()),
+                    x: uniform(0, VIRTUAL_SCREEN_WIDTH), // Changed
+                    y: uniform(0, VIRTUAL_SCREEN_HEIGHT), // Changed
                     speed: uniform(1.0f, 5.0f),
                     color: Color(
                         r: cast(uint8_t)uniform(200, 255),
@@ -1105,12 +1106,12 @@ class TitleScreen : IScreen {
             float mistW = mistBackgroundTexture.width;
             float mistH = mistBackgroundTexture.height;
             // Draw enough to cover the screen (repeat horizontally)
-            for (float x = mistBackgroundOffsetX; x < GetScreenWidth(); x += mistW) {
+            for (float x = mistBackgroundOffsetX; x < VIRTUAL_SCREEN_WIDTH; x += mistW) { // Changed
                 DrawTexturePro(
                     mistBackgroundTexture,
                     Rectangle(0, 0, mistW, mistH),
                     Rectangle(x, mistY, mistW, mistH),
-                    Vector2(0, GetScreenHeight() / -2.0f), 
+                    Vector2(0, VIRTUAL_SCREEN_HEIGHT / -2.0f), // Changed 
                     0.0f,
                     Colors.WHITE
                 );
@@ -1118,26 +1119,26 @@ class TitleScreen : IScreen {
         }
 
         // Draw logo (only if not moving off or if still on screen)
-        if (logoAnimationStarted && logoPosition.y < GetScreenHeight()) {
-            DrawTexturePro(logoTexture, Rectangle(0, 0, logoTexture.width, logoTexture.height), 
+        if (logoAnimationStarted && logoPosition.y < VIRTUAL_SCREEN_HEIGHT) { // Changed
+            DrawTexturePro(logoTexture, Rectangle(0, 0, logoTexture.width, logoTexture.height - 1), 
                 Rectangle(logoPosition.x, logoPosition.y, logoTexture.width, logoTexture.height), Vector2(0, 0), 0.0f, Colors.WHITE);
         }
         
         // Draw background
         DrawTexturePro(backgroundTexture, Rectangle(0, 0, backgroundTexture.width, backgroundTexture.height), 
-            Rectangle(0, 0, GetScreenWidth(), GetScreenHeight()), Vector2(0, 0), 0.0f, Colors.WHITE);
+            Rectangle(0, 0, VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT), Vector2(0, 0), 0.0f, Colors.WHITE); // Changed
 
         // Draw mist foreground (scrolling right, in front of backdrop)
         if (mistForegroundTexture.id != 0) {
             float mistY = 0;
             float mistW = mistForegroundTexture.width;
             float mistH = mistForegroundTexture.height;
-            for (float x = mistForegroundOffsetX - mistW; x < GetScreenWidth(); x += mistW) {
+            for (float x = mistForegroundOffsetX - mistW; x < VIRTUAL_SCREEN_WIDTH; x += mistW) { // Changed
                 DrawTexturePro(
                     mistForegroundTexture,
                     Rectangle(0, 0, mistW, mistH),
                     Rectangle(x, mistY, mistW, mistH),
-                    Vector2(0, GetScreenHeight() / -2.0f),
+                    Vector2(0, VIRTUAL_SCREEN_HEIGHT / -2.0f), // Changed
                     0.0f,
                     Colors.WHITE
                 );
@@ -1160,7 +1161,7 @@ class TitleScreen : IScreen {
                     buttonTexture.height * buttonScale.y
                 );
 
-                if (!buttonClickedOnce && CheckCollisionPointRec(GetMousePosition(), buttonRect)) {
+                if (!buttonClickedOnce && CheckCollisionPointRec(GetMousePositionVirtual(), buttonRect)) { // Changed
                     textureToDraw = buttonHoveredTexture;
                 }
 
@@ -1204,13 +1205,13 @@ class TitleScreen : IScreen {
         }
 
         // Draw the actual logo2 texture if the fade is complete and it's on screen
-        if (fadeInComplete && logo2Position.y < GetScreenHeight() && logo2Position.y > -logo2Texture.height) {
+        if (fadeInComplete && logo2Position.y < VIRTUAL_SCREEN_HEIGHT && logo2Position.y > -logo2Texture.height) { // Changed
             DrawTexturePro(logo2Texture, Rectangle(0, 0, logo2Texture.width, logo2Texture.height), 
                 Rectangle(logo2Position.x, logo2Position.y, logo2Texture.width, logo2Texture.height), Vector2(0, 0), 0.0f, Colors.WHITE);
         }
 
         // Draw the whitened logo2 texture (if on screen)
-        if (whitenedLogo2Alpha > 0.0f && logo2Position.y < GetScreenHeight() && logo2Position.y > -logo2Texture.height) {
+        if (whitenedLogo2Alpha > 0.0f && logo2Position.y < VIRTUAL_SCREEN_HEIGHT && logo2Position.y > -logo2Texture.height) { // Changed
             DrawTextureEx(whitenedLogo2Texture, 
                 logo2Position, 
                 0.0f, 1.0f, 
@@ -1219,12 +1220,12 @@ class TitleScreen : IScreen {
 
         // Draw fade from black overlay last so it covers everything
         if (screenFadeAlpha > 0.0f) {
-            DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), 
+            DrawRectangle(0, 0, VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT, // Changed
                          Fade(Colors.BLACK, screenFadeAlpha));
         }
 
         // Draw the button (change to hovered texture if mouse is over it)
-        Vector2 mousePos = GetMousePosition();
+        Vector2 mousePos = GetMousePositionVirtual(); // Changed
         Rectangle buttonRect = Rectangle(
             buttonPosition.x, 
             buttonPosition.y, 
@@ -1249,7 +1250,7 @@ class TitleScreen : IScreen {
             float scaledVisibleHeight = min(originalHeight, visibleHeight) * menuGadgetsScale;
             
             Rectangle destRec = Rectangle(
-                (GetScreenWidth() - (menuGadgetsTexture.width * menuGadgetsScale)) / 2.0f, // Center horizontally
+                (VIRTUAL_SCREEN_WIDTH - (menuGadgetsTexture.width * menuGadgetsScale)) / 2.0f, // Center horizontally // Changed
                 menuGadgetsPosition.y, // Current Y position
                 menuGadgetsTexture.width * menuGadgetsScale, // Apply scale
                 scaledVisibleHeight // Apply scale to visible height only
@@ -1264,7 +1265,7 @@ class TitleScreen : IScreen {
                 menuGadgetsDebugTimer = 0.0f;
                 writeln("Menu Gadgets Position: ", menuGadgetsPosition);
                 writeln("Menu Gadgets Scale: ", menuGadgetsScale);
-                writeln("Screen Width: ", GetScreenWidth());
+                writeln("Screen Width: ", VIRTUAL_SCREEN_WIDTH); // Changed
                 writeln("Menu Gadgets Width: ", menuGadgetsTexture.width);
             }
 

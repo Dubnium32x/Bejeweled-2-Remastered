@@ -54,7 +54,7 @@ Vector2 GetMousePositionVirtual() {
 
 
 void main() {
-    InitWindow(1280, 720, "Bejeweled 2 Remastered"); // Actual window size
+    InitWindow(1600, 900, "Bejeweled 2 Remastered"); // Actual window size
     SetTargetFPS(60);
 
     // Initialize virtual screen

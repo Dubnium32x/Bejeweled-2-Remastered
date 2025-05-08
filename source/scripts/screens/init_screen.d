@@ -17,6 +17,7 @@ import world.memory_manager;
 import world.audio_manager;
 import world.screen_states;
 import app;
+import app : VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT; // Specifically import the constants
 
 // ---- LOCAL VARIABLES ----
 Texture popcapTexture;
@@ -244,7 +245,7 @@ class InitScreen : IScreen {
         }
 
         // Draw black background
-        DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Colors.BLACK);
+        DrawRectangle(0, 0, VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT, Colors.BLACK);
         
         // Create fade color based on the current phase
         Color fadeColor = Colors.WHITE;
@@ -253,8 +254,8 @@ class InitScreen : IScreen {
         // Draw PopCap logo with current fade level
         DrawTexture(
             popcapTexture, 
-            (GetScreenWidth() - popcapTexture.width) / 2,
-            (GetScreenHeight() - popcapTexture.height) / 2 + 20, // Adjusted Y position slightly down
+            (VIRTUAL_SCREEN_WIDTH - popcapTexture.width) / 2,
+            (VIRTUAL_SCREEN_HEIGHT - popcapTexture.height) / 2 + 20, // Adjusted Y position slightly down
             fadeColor
         );
         
@@ -264,8 +265,8 @@ class InitScreen : IScreen {
             fontFamily[2],
             originalByText.toStringz(),
             Vector2(
-                (GetScreenWidth() - MeasureTextEx(fontFamily[2], originalByText.toStringz(), 20, 1.0f).x) / 2,
-                (GetScreenHeight() - popcapTexture.height) / 2 - 20 // Centered horizontally and positioned slightly above the logo
+                (VIRTUAL_SCREEN_WIDTH - MeasureTextEx(fontFamily[2], originalByText.toStringz(), 20, 1.0f).x) / 2,
+                (VIRTUAL_SCREEN_HEIGHT - popcapTexture.height) / 2 - 20 // Centered horizontally and positioned slightly above the logo
             ),
             20,
             1.0f, // Spacing between characters
