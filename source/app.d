@@ -25,9 +25,41 @@ Font quincy;
 // Use __gshared to ensure proper sharing across modules
 __gshared Font[] fontFamily;
 
+// Virtual screen setup
+private const int VIRTUAL_SCREEN_WIDTH = 1280;
+private const int VIRTUAL_SCREEN_HEIGHT = 720;
+private __gshared RenderTexture2D virtualScreen; // __gshared if other modules need direct access, otherwise private
+
+// Function to get mouse position in virtual screen coordinates
+Vector2 GetMousePositionVirtual() {
+    Vector2 mouseScreenPos = GetMousePosition();
+    
+    float scale = min(cast(float)GetScreenWidth() / VIRTUAL_SCREEN_WIDTH, 
+                      cast(float)GetScreenHeight() / VIRTUAL_SCREEN_HEIGHT);
+                      
+    // Calculate the top-left position of the scaled virtual screen on the actual screen
+    float destX = (GetScreenWidth() - (VIRTUAL_SCREEN_WIDTH * scale)) / 2.0f;
+    float destY = (GetScreenHeight() - (VIRTUAL_SCREEN_HEIGHT * scale)) / 2.0f;
+
+    // Convert screen mouse position to virtual screen mouse position
+    float virtualMouseX = (mouseScreenPos.x - destX) / scale;
+    float virtualMouseY = (mouseScreenPos.y - destY) / scale;
+
+    // Clamp to virtual screen bounds if necessary, though often not strictly needed
+    // virtualMouseX = clamp(virtualMouseX, 0, VIRTUAL_SCREEN_WIDTH);
+    // virtualMouseY = clamp(virtualMouseY, 0, VIRTUAL_SCREEN_HEIGHT);
+
+    return Vector2(virtualMouseX, virtualMouseY);
+}
+
+
 void main() {
-    InitWindow(1280, 720, "Bejeweled 2 Remastered");
+    InitWindow(1280, 720, "Bejeweled 2 Remastered"); // Actual window size
     SetTargetFPS(60);
+
+    // Initialize virtual screen
+    virtualScreen = LoadRenderTexture(VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT);
+    SetTextureFilter(virtualScreen.texture, TextureFilter.TEXTURE_FILTER_BILINEAR);
 
     // Load fonts at runtime using MemoryManager
     auto memManager = MemoryManager.instance();
@@ -83,20 +115,50 @@ void main() {
             writeln("Performance warning: Frame time: ", frameTime * 1000, " ms");
         }
         
-        BeginDrawing();
-        ClearBackground(Colors.RAYWHITE);
-
-        // Update the audio manager to handle music updates
+        // --- UPDATE GAME LOGIC ---
         audioManager.update();
-        
-        // Update the current screen
         screenManager.update(GetFrameTime());
-        // Draw the current screen
-        screenManager.draw();
         
-        // Optional: Display FPS in debug mode
-        DrawFPS(10, 10);
+        // --- DRAW GAME TO VIRTUAL SCREEN ---
+        BeginTextureMode(virtualScreen);
+            ClearBackground(Colors.BLANK); // Clear virtual screen to fully transparent
+            BeginBlendMode(BlendMode.BLEND_ALPHA); // Ensure standard alpha blending for drawing operations
+            
+            // The active screen (e.g., TitleScreen) is responsible for 
+            // drawing its own background and elements onto this now-cleared virtual screen.
+            screenManager.draw(); 
+            
+            EndBlendMode();
+        EndTextureMode();
         
+        // --- DRAW VIRTUAL SCREEN TO ACTUAL WINDOW ---
+        BeginDrawing();
+            ClearBackground(Colors.BLANK); // Clear letterbox/pillarbox area
+
+            // Calculate scale to fit virtual screen into actual screen, maintaining aspect ratio
+            float scale = min(cast(float)GetScreenWidth() / VIRTUAL_SCREEN_WIDTH, 
+                              cast(float)GetScreenHeight() / VIRTUAL_SCREEN_HEIGHT);
+            
+            // Calculate position to center the scaled virtual screen
+            float destX = (GetScreenWidth() - (VIRTUAL_SCREEN_WIDTH * scale)) / 2.0f;
+            float destY = (GetScreenHeight() - (VIRTUAL_SCREEN_HEIGHT * scale)) / 2.0f;
+
+            // Define source and destination rectangles for drawing the texture
+            // Note: Raylib render textures are Y-flipped by default. Negative height in sourceRec flips it back.
+            Rectangle sourceRec = Rectangle(0, 0, VIRTUAL_SCREEN_WIDTH, -VIRTUAL_SCREEN_HEIGHT); 
+            Rectangle destRec = Rectangle(destX, destY, VIRTUAL_SCREEN_WIDTH * scale, VIRTUAL_SCREEN_HEIGHT * scale);
+            Vector2 origin = Vector2(0, 0); // Top-left origin
+
+            DrawTexturePro(virtualScreen.texture, sourceRec, destRec, origin, 0.0f, Colors.WHITE);
+            
+            // Optional: Display FPS in debug mode (drawn on top of the scaled virtual screen)
+            DrawFPS(10, 10);
+            
         EndDrawing();
     }
+
+    // De-Initialization
+    UnloadRenderTexture(virtualScreen); // Unload the render texture
+    // Unload fonts
+    // ... existing deinitialization ...
 }
