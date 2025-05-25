@@ -20,6 +20,7 @@ enum GameplayState {
 enum TitleState {
     LOGO,
     MAINMENU,
+    GAMEMENU,
     OPTIONS
 }
 
