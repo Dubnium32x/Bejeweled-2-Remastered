@@ -9,6 +9,7 @@ import std.path;
 import std.string;
 import std.algorithm;
 
+import data;
 import world.screen_manager;
 import world.audio_manager;
 import world.memory_manager;
@@ -29,6 +30,9 @@ __gshared Font[] fontFamily;
 private const int VIRTUAL_SCREEN_WIDTH = 1280;
 private const int VIRTUAL_SCREEN_HEIGHT = 720;
 private __gshared RenderTexture2D virtualScreen; // __gshared if other modules need direct access, otherwise private
+
+// Get the game mode from data
+// Set the default game mode inside main()
 
 // Function to get mouse position in virtual screen coordinates
 Vector2 GetMousePositionVirtual() {
@@ -56,6 +60,9 @@ Vector2 GetMousePositionVirtual() {
 void main() {
     InitWindow(1600, 900, "Bejeweled 2 Remastered"); // Actual window size
     SetTargetFPS(60);
+
+    // Set the default game mode
+    data.setCurrentGameMode(GameMode.ORIGINAL);
 
     // Initialize virtual screen
     virtualScreen = LoadRenderTexture(VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT);

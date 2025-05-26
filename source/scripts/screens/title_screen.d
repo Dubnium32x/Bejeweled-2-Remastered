@@ -14,6 +14,7 @@ import std.math;
 import std.string : toStringz;
 import core.stdc.stdint; // For uint8_t
 
+import data;
 import world.screen_manager;
 import world.memory_manager;
 import world.audio_manager;
@@ -233,14 +234,13 @@ class TitleScreen : IScreen {
     }
     
     // Menu UI text elements
-    static string saveNameText = "Christina"; // Will be populated conditionally
     private string selectGameModeText = "Select a game mode.";
     private string welcomeText; // Will be set in constructor or initialize
-    private string originalGameText = "THE ORIGINAL\nUNTIMED GAME";
-    private string classicLevelText = "";  // Will be populated conditionally
-    private string actionLevelText = "";   // Will be populated conditionally
-    private string puzzlePercentText = "0%"; // Changed to 0% as requested
-    private string endlessLevelText = "LEVEL 1"; // Keep showing Level 1 for Endless
+    private string originalGameText; // Will be populated conditionally
+    private string classicLevelText;  // Will be populated conditionally
+    private string actionLevelText;   // Will be populated conditionally
+    private string puzzlePercentText; // Changed to 0% as requested
+    private string endlessLevelText; // Keep showing Level 1 for Endless
     private string toggleModesText = "Toggle Secret Modes";
     private string returnToMenuText = "Return to the Main Menu";
     
@@ -258,7 +258,7 @@ class TitleScreen : IScreen {
         audioManager = AudioManager.getInstance();
 
         // Initialize welcomeText with the current saveNameText
-        welcomeText = "Welcome, " ~ saveNameText ~ "!";
+        welcomeText = ("Welcome, " ~ data.playerSavedName ~ "!");
 
         texturesToPreload = [
             // Textures for the title screen
@@ -414,13 +414,32 @@ class TitleScreen : IScreen {
         hasActionSavedGame = false;
         
         // Set up level text based on saved game state
-        if (hasClassicSavedGame) {
-            classicLevelText = "LEVEL 2";
+        classicLevelText = "Level " ~ to!string(playerSavedClassicLevel);
+        actionLevelText = "Level " ~ to!string(playerSavedActionLevel);
+
+        if (currentGameMode == GameMode.ORIGINAL) {
+            puzzlePercentText = to!string(percentPuzzleCompletionOriginal) ~ "%"; // Use the original game mode's completion percentage
         }
-        
-        if (hasActionSavedGame) {
-            actionLevelText = "LEVEL 1";
+        else if (currentGameMode == GameMode.ARRANGED) {
+            puzzlePercentText = to!string(percentPuzzleCompletionArranged) ~ "%"; // Use the arranged game mode's completion percentage
+        } else {
+            puzzlePercentText = "N/A"; // Default for other modes
         }
+
+        endlessLevelText = "Level " ~ to!string(playerSavedEndlessLevel);
+
+        // if (!playerHasSavedClassicGame) {
+        //     classicLevelText = "";
+        // }
+        // if (!playerHasSavedActionGame) {
+        //     actionLevelText = "";
+        // }
+        // if (!playerHasSavedPuzzleGame) {
+        //     puzzlePercentText = "";
+        // }
+        // if (!playerHasSavedEndlessGame) {
+        //     endlessLevelText = "";
+        // }
 
         alphaMapTextures();
         sliceSparkleTextures();
@@ -1149,6 +1168,8 @@ class TitleScreen : IScreen {
                     
                     if (currentHoveredButton == -1 && mainMenuLastHoveredButtonIndex != -1) {
                         // Optional: Play mouse off sound if needed, though Bejeweled usually doesn't
+                        StopSound(mainMenuMouseOverSound); // Stop sound if no button is hovered
+                        PlaySound(mainMenuMouseOffSound);
                     }
                     mainMenuLastHoveredButtonIndex = currentHoveredButton;
 
@@ -1158,7 +1179,7 @@ class TitleScreen : IScreen {
 
                             switch (currentHoveredButton) {
                                 case 0: // PLAY GAME
-                                    if (mainMenuGameStartSound.frameCount > 0) PlaySound(mainMenuGameStartSound);
+                                    if (menuClickSound.frameCount > 0) PlaySound(menuClickSound);
                                     state = TitleState.GAMEMENU;
                                     menuGadgetsMovingOn = true; 
                                     writeln("PLAY GAME clicked, transitioning to GAMEMENU");
@@ -1599,77 +1620,102 @@ class TitleScreen : IScreen {
             float menuWidth = menuGadgetsTexture.width * menuGadgetsScale;
             float menuHeight = 628 * menuGadgetsScale; // Use cropped height
             
-            // X positions: More tightly spaced horizontally (25%/75%)
-            float leftX = menuGadgetsPosition.x + menuWidth * 0.255f; // About 25% from left edge
-            float rightX = menuGadgetsPosition.x + menuWidth * 0.745f; // About 75% from left edge
-
-            // Y positions: 50% for top row, 35% for bottom row (tighter vertical spacing)
+            float leftX = menuGadgetsPosition.x + menuWidth * 0.255f; 
+            float rightX = menuGadgetsPosition.x + menuWidth * 0.745f; 
             float topY = menuGadgetsPosition.y + menuHeight * 0.275f;
             float bottomY = menuGadgetsPosition.y + menuHeight * 0.815f;
 
-            float buttonScale = 1.0f;
-            // Classic (top left)
-            DrawTextureEx(classicTexture, 
-                Vector2(leftX - (classicTexture.width * buttonScale / 2), 
-                       topY - (classicTexture.height * buttonScale / 2)), 
-                0.0f, buttonScale, classicButtonHovered ? Colors.YELLOW : Colors.WHITE);
-            // Action (top right)
-            DrawTextureEx(actionTexture, 
-                Vector2(rightX - (actionTexture.width * buttonScale / 2), 
-                       topY - (actionTexture.height * buttonScale / 2)), 
-                0.0f, buttonScale, actionButtonHovered ? Colors.YELLOW : Colors.WHITE);
-            // Puzzle (bottom left)
-            DrawTextureEx(puzzleTexture, 
-                Vector2(leftX - (puzzleTexture.width * buttonScale / 2), 
-                       bottomY - (puzzleTexture.height * buttonScale / 2)), 
-                0.0f, buttonScale, puzzleButtonHovered ? Colors.YELLOW : Colors.WHITE);
-            // Endless (bottom right)
-            DrawTextureEx(endlessTexture, 
-                Vector2(rightX - (endlessTexture.width * buttonScale / 2), 
-                       bottomY - (endlessTexture.height * buttonScale / 2)), 
-                0.0f, buttonScale, endlessButtonHovered ? Colors.YELLOW : Colors.WHITE);
+            // --- Draw Button Images with Hover Scale ---
+            float baseButtonScale = 1.0f;
+            float hoverButtonScale = 1.1f;
 
-            // Draw text overlays for each button (level, percent, etc.)
-            float textFontSize = 20.0f; // Slightly smaller text
-            float textYOffset = classicTexture.height * buttonScale * 0.8f; // Tighter integration with orbs
+            // Classic (top left)
+            float classicCurrentScale = classicButtonHovered ? hoverButtonScale : baseButtonScale;
+            Vector2 classicPos = Vector2(
+                leftX - (classicTexture.width * classicCurrentScale / 2.0f), 
+                topY - (classicTexture.height * classicCurrentScale / 2.0f)
+            );
+            DrawTextureEx(classicTexture, classicPos, 0.0f, classicCurrentScale, Colors.WHITE);
+
+            // Action (top right)
+            float actionCurrentScale = actionButtonHovered ? hoverButtonScale : baseButtonScale;
+            Vector2 actionPos = Vector2(
+                rightX - (actionTexture.width * actionCurrentScale / 2.0f), 
+                topY - (actionTexture.height * actionCurrentScale / 2.0f)
+            );
+            DrawTextureEx(actionTexture, actionPos, 0.0f, actionCurrentScale, Colors.WHITE);
+
+            // Puzzle (bottom left)
+            float puzzleCurrentScale = puzzleButtonHovered ? hoverButtonScale : baseButtonScale;
+            Vector2 puzzlePos = Vector2(
+                leftX - (puzzleTexture.width * puzzleCurrentScale / 2.0f), 
+                bottomY - (puzzleTexture.height * puzzleCurrentScale / 2.0f)
+            );
+            DrawTextureEx(puzzleTexture, puzzlePos, 0.0f, puzzleCurrentScale, Colors.WHITE);
+            
+            // Endless (bottom right)
+            float endlessCurrentScale = endlessButtonHovered ? hoverButtonScale : baseButtonScale;
+            Vector2 endlessPos = Vector2(
+                rightX - (endlessTexture.width * endlessCurrentScale / 2.0f), 
+                bottomY - (endlessTexture.height * endlessCurrentScale / 2.0f)
+            );
+            DrawTextureEx(endlessTexture, endlessPos, 0.0f, endlessCurrentScale, Colors.WHITE);
+
+            // --- Draw Sub-Text Overlays (using Quincy font) ---
+            float textFontSize = 20.0f; // You can adjust this
             Color textColor = Colors.WHITE;
-            
-            // Calculate text positions (centered under each button)
-            // Classic text
-            float classicTextX = leftX - MeasureTextEx(app.fontFamily[0], originalGameText.toStringz(), textFontSize, 1.0f).x / 2;
-            DrawTextEx(app.fontFamily[0], originalGameText.toStringz(), 
-                      Vector2(classicTextX, topY + classicTexture.height/2 + textYOffset), 
-                      textFontSize, 1.0f, textColor);
+            Font subTextFont = app.fontFamily[4]; // Quincy font
+
+            // Y offset for the sub-label text from the *bottom* of the button image.
+            float subLabelYOffsetFromImageBottom = 8.0f; // Adjust for desired spacing
+
+            // --- Classic Button Sub-Text ---
             if (classicLevelText != "") {
-                float levelTextX = leftX - MeasureTextEx(app.fontFamily[0], classicLevelText.toStringz(), textFontSize, 1.0f).x / 2;
-                DrawTextEx(app.fontFamily[0], classicLevelText.toStringz(), 
-                          Vector2(levelTextX, topY + classicTexture.height/2 + textYOffset + 24.0f), 
+                float classicButtonImageBottomY = topY + (classicTexture.height * classicCurrentScale / 2.0f);
+                Vector2 classicLevelTextSize = MeasureTextEx(subTextFont, classicLevelText.toStringz(), textFontSize, 1.0f);
+                float classicLevelTextX = leftX - classicLevelTextSize.x / 2.0f;
+                float classicLevelTextY = classicButtonImageBottomY + subLabelYOffsetFromImageBottom;
+                
+                DrawTextEx(subTextFont, classicLevelText.toStringz(), 
+                          Vector2(classicLevelTextX, classicLevelTextY), 
                           textFontSize, 1.0f, textColor);
             }
             
-            // Action text
-            float actionTextX = rightX - MeasureTextEx(app.fontFamily[0], "SPEED GAME", textFontSize, 1.0f).x / 2;
-            DrawTextEx(app.fontFamily[0], "SPEED GAME", 
-                      Vector2(actionTextX, topY + actionTexture.height/2 + textYOffset), 
-                      textFontSize, 1.0f, textColor);
+            // --- Action Button Sub-Text ---
             if (actionLevelText != "") {
-                float actionLevelX = rightX - MeasureTextEx(app.fontFamily[0], actionLevelText.toStringz(), textFontSize, 1.0f).x / 2;
-                DrawTextEx(app.fontFamily[0], actionLevelText.toStringz(), 
-                          Vector2(actionLevelX, topY + actionTexture.height/2 + textYOffset + 24.0f), 
+                float actionButtonImageBottomY = topY + (actionTexture.height * actionCurrentScale / 2.0f);
+                Vector2 actionLevelTextSize = MeasureTextEx(subTextFont, actionLevelText.toStringz(), textFontSize, 1.0f);
+                float actionLevelTextX = rightX - actionLevelTextSize.x / 2.0f;
+                float actionLevelTextY = actionButtonImageBottomY + subLabelYOffsetFromImageBottom;
+                
+                DrawTextEx(subTextFont, actionLevelText.toStringz(), 
+                          Vector2(actionLevelTextX, actionLevelTextY), 
                           textFontSize, 1.0f, textColor);
             }
             
-            // Puzzle text (bottom left)
-            float puzzleTextX = leftX - MeasureTextEx(app.fontFamily[0], puzzlePercentText.toStringz(), textFontSize, 1.0f).x / 2;
-            DrawTextEx(app.fontFamily[0], puzzlePercentText.toStringz(), 
-                      Vector2(puzzleTextX, bottomY + puzzleTexture.height/2 + textYOffset), 
-                      textFontSize, 1.0f, textColor);
+            // --- Puzzle Button Sub-Text ---
+            if (puzzlePercentText != "") {
+                 float puzzleButtonImageBottomY = bottomY + (puzzleTexture.height * puzzleCurrentScale / 2.0f);
+                 Vector2 puzzlePercentTextSize = MeasureTextEx(subTextFont, puzzlePercentText.toStringz(), textFontSize, 1.0f);
+                 float puzzlePercentTextX = leftX - puzzlePercentTextSize.x / 2.0f;
+                 float puzzlePercentTextY = puzzleButtonImageBottomY + subLabelYOffsetFromImageBottom;
+                 
+                 DrawTextEx(subTextFont, puzzlePercentText.toStringz(), 
+                           Vector2(puzzlePercentTextX, puzzlePercentTextY), 
+                           textFontSize, 1.0f, textColor);
+            }
             
-            // Endless text (bottom right)
-            float endlessTextX = rightX - MeasureTextEx(app.fontFamily[0], endlessLevelText.toStringz(), textFontSize, 1.0f).x / 2;
-            DrawTextEx(app.fontFamily[0], endlessLevelText.toStringz(), 
-                      Vector2(endlessTextX, bottomY + endlessTexture.height/2 + textYOffset), 
-                      textFontSize, 1.0f, textColor);
+            // --- Endless Button Sub-Text ---
+            if (endlessLevelText != "") {
+                float endlessButtonImageBottomY = bottomY + (endlessTexture.height * endlessCurrentScale / 2.0f);
+                Vector2 endlessLevelTextSize = MeasureTextEx(subTextFont, endlessLevelText.toStringz(), textFontSize, 1.0f);
+                float endlessLevelTextX = rightX - endlessLevelTextSize.x / 2.0f;
+                float endlessLevelTextY = endlessButtonImageBottomY + subLabelYOffsetFromImageBottom;
+                
+                DrawTextEx(subTextFont, endlessLevelText.toStringz(), 
+                          Vector2(endlessLevelTextX, endlessLevelTextY), 
+                          textFontSize, 1.0f, textColor);
+            }
 
             // Draw the select game mode text at the top of the menu gadgets
             float selectTextFontSize = 28.0f;
@@ -1752,7 +1798,7 @@ class TitleScreen : IScreen {
 
         // DEBUG: Draw current state
         string stateText = "State: " ~ to!string(state);
-        DrawTextEx(app.fontFamily[0], stateText.toStringz(), Vector2(10, VIRTUAL_SCREEN_HEIGHT - 30), 20, 1.0f, Colors.WHITE);
+        DrawTextEx(app.fontFamily[4], stateText.toStringz(), Vector2(10, VIRTUAL_SCREEN_HEIGHT - 30), 20, 1.0f, Colors.WHITE);
     }
 
     void unload() {
