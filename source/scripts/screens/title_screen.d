@@ -414,8 +414,8 @@ class TitleScreen : IScreen {
         hasActionSavedGame = false;
         
         // Set up level text based on saved game state
-        classicLevelText = "Level " ~ to!string(playerSavedClassicLevel);
-        actionLevelText = "Level " ~ to!string(playerSavedActionLevel);
+        classicLevelText = "LEVEL " ~ to!string(playerSavedClassicLevel);
+        actionLevelText = "LEVEL " ~ to!string(playerSavedActionLevel);
 
         if (currentGameMode == GameMode.ORIGINAL) {
             puzzlePercentText = to!string(percentPuzzleCompletionOriginal) ~ "%"; // Use the original game mode's completion percentage
@@ -426,7 +426,7 @@ class TitleScreen : IScreen {
             puzzlePercentText = "N/A"; // Default for other modes
         }
 
-        endlessLevelText = "Level " ~ to!string(playerSavedEndlessLevel);
+        endlessLevelText = "LEVEL " ~ to!string(playerSavedEndlessLevel);
 
         // if (!playerHasSavedClassicGame) {
         //     classicLevelText = "";
