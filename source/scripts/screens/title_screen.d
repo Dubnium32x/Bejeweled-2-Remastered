@@ -15,6 +15,7 @@ import std.string : toStringz;
 import core.stdc.stdint; // For uint8_t
 
 import data;
+import screens.popups.name_entry;
 import world.screen_manager;
 import world.memory_manager;
 import world.audio_manager;
@@ -37,6 +38,9 @@ Texture sparkleTexture; // Texture is used for sparkle animation (and its own al
 Texture planetTexture;
 Texture planetAlpha;
 Texture whitenedLogo2Texture;
+
+Texture orbHoverTexture;
+Texture subtitleTexture;
 
 // New: Main Menu Button Textures
 Texture mainMenuButtonTexture;
@@ -136,6 +140,7 @@ class TitleScreen : IScreen {
     private __gshared TitleScreen instance;
     private MemoryManager memoryManager;
     private AudioManager audioManager;
+    private NameEntry nameEntryDialog; // Changed: Declare without initializing
 
     // Current state of the screen
     TitleState state;
@@ -173,8 +178,20 @@ class TitleScreen : IScreen {
     private bool menuGadgetsMovingOn = false;
     private float offScreenAnimationSpeed = 600.0f; // Reduced from 1200.0f to 600.0f for slower logo rise
     private float menuGadgetsAnimationSpeed = 1000.0f; // Pixels per second
-    private float menuGadgetsScale = 0.88f; // Adjusted scale for better fit with original game
+    private float menuGadgetsScale = 1.0f; // Adjusted scale for better fit with original game
     private float menuGadgetsEasingFactor = 4.0f; // New: Easing for menu gadgets movement
+
+    // Check whether the title elements have moved off screen
+    bool titleElementsOffScreen() {
+        return !titleElementsMovingOff && logoPosition.y <= -logoTexture.height && 
+               logo2Position.y <= -logo2Texture.height && 
+               buttonPosition.y <= -buttonTexture.height * buttonScale.y;
+    }
+
+    // Check whether the menu gadgets have moved on screen
+    bool menuGadgetsOnScreen() {
+        return !menuGadgetsMovingOn && abs(menuGadgetsPosition.y - menuGadgetsTargetY) < 1.0f;
+    }
 
     // Resources to preload
     private string[] texturesToPreload;
@@ -218,21 +235,40 @@ class TitleScreen : IScreen {
     private int mainMenuLastHoveredButtonIndex = -1; // -1 for none
     private float mainMenuButtonVerticalGap; // NEW CLASS MEMBER
 
+    private Sound mainMenuMouseOverSound;
+    private Sound mainMenuMouseClickSound;
+    private Sound mainMenuGameStartSound;
+
+    private string copyrightText; // For copyright notice
+
+    // Orb hover texture
+    private Texture2D orbHoverTexture;
+
+    // Subtitle texture and sparkle effect
+    private Texture2D subtitleTexture;
+    private Texture2D sparkleTexture;
+    private bool subtitleEffectActive = false;      // Tracks if the wipe effect is currently running
+    private bool subtitleEffectPlayedOnce = false;  // Tracks if the initial wipe effect has completed
+    private float subtitleWipeProgress = 0.0f;      // 0.0 to 1.0 for wipe animation
+    private float subtitleEffectTimer = 0.0f;       // Timer for the subtitle effect
+    private float subtitleEffectDuration = 1.0f;    // Duration of the subtitle wipe effect in seconds
+    private bool logoStableForSubtitleEffect = false; // True when main logo is in final position
+
+    // Small logo subtitle properties
+    private float subtitleYOffset;              // Y offset for the small logo's subtitle from the bottom of the small logo
+    private float subtitleXOffset;              // X offset for the small logo's subtitle from the center of the small logo
+    private float smallLogoSubtitleScale;       // Scale of the subtitle texture when shown with the small logo
+
+    // New: Variables for main logo's subtitle positioning and scale
+    private float mainLogoSubtitleScale = 0.55f; // Adjusted from 0.6f
+    private float mainLogoSubtitleYOffset = 5.0f; // Adjusted from 15.0f
+    private float mainLogoSubtitleXOffset = 0.0f;  // Pixels to shift L/R from center of "2"
+
     private TitleState previousTitleState; // To detect state changes for small logo animation
 
-    // Check whether the title elements have moved off screen
-    bool titleElementsOffScreen() {
-        return !titleElementsMovingOff && logoPosition.y <= -logoTexture.height && 
-               logo2Position.y <= -logo2Texture.height && 
-               buttonPosition.y <= -buttonTexture.height * buttonScale.y;
-    }
+    // New: Flags for secret modes
+    private bool secretModesEnabled = false; // Flag to track if secret modes are enabled
 
-    // Check whether the menu gadgets have moved on screen
-    bool menuGadgetsOnScreen() {
-        // return !menuGadgetsMovingOn && menuGadgetsPosition.y >= menuGadgetsTargetY; // Old condition
-        return !menuGadgetsMovingOn && abs(menuGadgetsPosition.y - menuGadgetsTargetY) < 1.0f; // New condition
-    }
-    
     // Menu UI text elements
     private string selectGameModeText = "Select a game mode.";
     private string welcomeText; // Will be set in constructor or initialize
@@ -291,7 +327,12 @@ class TitleScreen : IScreen {
             // New Main Menu Button Textures
             "resources/image/menu_button.png",
             "resources/image/GMBHIghlite.png",
-            "resources/image/GMBHIghlite_.png"
+            "resources/image/GMBHIghlite_.png",
+            // Add orb texture
+            // "resources/image/MMSGamerollover_.png" // This texture is not used in the title screen, so it can be omitted here
+            "resources/image/MMSGamerollover_.png",
+            // Add subtitle texture
+            "resources/image/subtitle.png"
         ];
 
          soundsToPreload = [
@@ -328,6 +369,8 @@ class TitleScreen : IScreen {
     void initialize() {
         memoryManager = MemoryManager.instance();
         audioManager = AudioManager.getInstance();
+        nameEntryDialog = new NameEntry(); // Added: Initialize here
+
         // Load textures
         backgroundTexture = LoadTexture("resources/image/backdrops/backdrop_title_A.png");
         SetTextureFilter(backgroundTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
@@ -355,6 +398,8 @@ class TitleScreen : IScreen {
         SetTextureFilter(menuGadgetsTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         menuGadgetsAlpha = LoadTexture("resources/image/Menu-Gadgets_.png");
         SetTextureFilter(menuGadgetsAlpha, TextureFilter.TEXTURE_FILTER_BILINEAR);
+        subtitleTexture = LoadTexture("resources/image/subtitle.png");
+        SetTextureFilter(subtitleTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
 
         // PATCH: Load mist textures
         mistBackgroundTexture = LoadTexture("resources/image/mist_background.png");
@@ -379,6 +424,8 @@ class TitleScreen : IScreen {
         SetTextureFilter(puzzleTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         puzzleAlpha = LoadTexture("resources/image/Puzzle_.png");
         SetTextureFilter(puzzleAlpha, TextureFilter.TEXTURE_FILTER_BILINEAR);
+        orbHoverTexture = LoadTexture("resources/image/MMSGamerollover_.png");
+        SetTextureFilter(orbHoverTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
 
         // New: Load Main Menu Button Textures
         mainMenuButtonTexture = LoadTexture("resources/image/menu_button.png");
@@ -403,7 +450,13 @@ class TitleScreen : IScreen {
         mainMenuMouseClickSound = LoadSound("resources/audio/sfx/mainmenu_mouseclick.ogg");
         mainMenuMouseOffSound = LoadSound("resources/audio/sfx/mainmenu_mouseoff.ogg");
         click2Sound = LoadSound("resources/audio/sfx/click2.ogg");
-        mainMenuGameStartSound = LoadSound("resources/audio/sfx/mainmenu_gamestart.ogg");
+        mainMenuGameStartSound = LoadSound("resources/audio/sfx/secret.ogg");
+
+        // Initialize copyright text
+        copyrightText = "BEJEWELED 2 - 2004 POPCAP GAMES, INC. ALL RIGHTS RESERVED.";
+
+        // Initialize subtitle effect variables
+        subtitleEffectActive = false;
 
         // Set initial state
         state = TitleState.LOGO;
@@ -448,9 +501,9 @@ class TitleScreen : IScreen {
         logoTargetY = (VIRTUAL_SCREEN_HEIGHT - logoTexture.height) / 8; // Changed
         logoStartY = VIRTUAL_SCREEN_HEIGHT + 50.0f; // Start below screen // Changed
         logoPosition = Vector2((VIRTUAL_SCREEN_WIDTH - logoTexture.width) / 2.0f + (16 * textureScale), VIRTUAL_SCREEN_HEIGHT); // Start below screen // Changed
-        logo2Position = Vector2((VIRTUAL_SCREEN_WIDTH - logo2Texture.width) / 2.0f, (VIRTUAL_SCREEN_HEIGHT - logo2Texture.height) / 3.0f); // Changed
+        logo2Position = Vector2((VIRTUAL_SCREEN_WIDTH - logo2Texture.width) / 2.0f, (VIRTUAL_SCREEN_HEIGHT - logo2Texture.height) / 3.5f); // Changed
         buttonPosition = Vector2((VIRTUAL_SCREEN_WIDTH - buttonTexture.width) / 2.0f, VIRTUAL_SCREEN_HEIGHT - buttonTexture.height - 50.0f); // Changed
-        planetPosition = Vector2(VIRTUAL_SCREEN_WIDTH - (planetTexture.width / (3.0/2.0)), VIRTUAL_SCREEN_HEIGHT - planetTexture.height); // Changed
+        planetPosition = Vector2(VIRTUAL_SCREEN_WIDTH - (planetTexture.width * (3.0/2.0)), VIRTUAL_SCREEN_HEIGHT - planetTexture.height); // Changed
         buttonScale = Vector2(0, 0);
 
         // Initialize menu gadgets positions
@@ -520,7 +573,7 @@ class TitleScreen : IScreen {
         mainMenuButtonHoverStates = new bool[mainMenuButtonLabels.length];
         mainMenuButtonVerticalGap = 10.0f; // Initialize the new member
 
-        mainMenuButtonFontSize = 22.0f; // Reduced font size for better fit
+        mainMenuButtonFontSize = 34.0f; // Reduced font size for better fit
 
         // Assuming mainMenuButtonTexture is loaded and valid
         if (mainMenuButtonTexture.id != 0) {
@@ -682,6 +735,13 @@ class TitleScreen : IScreen {
         SetTextureFilter(puzzleTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         UnloadImage(puzzleImage);
         UnloadImage(puzzleAlphaImage);
+
+        // Apply alpha mapping to orb hover texture
+        Image orbHoverImage = LoadImageFromTexture(orbHoverTexture);
+        Image orbHoverAlphaImage = LoadImageFromTexture(orbHoverTexture);
+        ImageAlphaMask(&orbHoverImage, orbHoverAlphaImage);
+        orbHoverTexture = LoadTextureFromImage(orbHoverImage);
+        SetTextureFilter(orbHoverTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
     }
 
     void sliceSparkleTextures() {
@@ -723,7 +783,7 @@ class TitleScreen : IScreen {
         UnloadImage(sparkleImage);
     }
 
-    void update(float deltaTime) {
+    void update(float dt) {
         // Update the texture scale based on the screen size
         // This should be done in the initialize method
 
@@ -745,6 +805,14 @@ class TitleScreen : IScreen {
                 mainMenuButtonsAnimationTimer = 0.0f;
                 mainMenuButtonCurrentX = mainMenuButtonStartX;
             }
+            if (!playerHasSavedName && state == TitleState.MAINMENU && !smallLogoAnimatingIn && !smallLogoAnimatingOut) {
+                // Create a name entry dialog if the player has no saved name
+                state = TitleState.OPTIONS;
+                nameEntryDialog.create();
+                if (nameEntryDialog.hasNameEntry) {
+                    nameEntryDialog.update(dt);
+                }
+            }
         } else if (justExitedMainMenu) {
             if (smallLogoIsShown && !smallLogoAnimatingOut) {
                 smallLogoAnimatingOut = true;
@@ -759,12 +827,12 @@ class TitleScreen : IScreen {
         }
 
         // --- Small Logo Animation Control & Execution ---
-        if (state == TitleState.MAINMENU && !smallLogoIsShown && !smallLogoAnimatingIn && !smallLogoAnimatingOut) {
+        if ((state == TitleState.MAINMENU || state == TitleState.OPTIONS) && !smallLogoIsShown && !smallLogoAnimatingIn && !smallLogoAnimatingOut) {
             smallLogoAnimatingIn = true;
             smallLogoAnimatingOut = false; // Ensure out is false
             smallLogoAnimationTimer = 0.0f;
             smallLogoCurrentY = smallLogoStartY; // Start from off-screen
-        } else if (state != TitleState.MAINMENU && (smallLogoIsShown || smallLogoAnimatingIn) && !smallLogoAnimatingOut) { // MODIFIED condition
+        } else if ((state != TitleState.MAINMENU && state != TitleState.OPTIONS) && (smallLogoIsShown || smallLogoAnimatingIn) && !smallLogoAnimatingOut) { // MODIFIED condition
             smallLogoAnimatingOut = true;
             if (smallLogoAnimatingIn) {
                 smallLogoAnimatingIn = false; // Stop "in" animation if it was active
@@ -773,7 +841,7 @@ class TitleScreen : IScreen {
         }
 
         if (smallLogoAnimatingIn) {
-            smallLogoAnimationTimer += deltaTime;
+            smallLogoAnimationTimer += dt;
             float progress = Clamp(smallLogoAnimationTimer / smallLogoAnimationDuration, 0.0f, 1.0f);
             float easedProgress = 1.0f - pow(1.0f - progress, 3.0f); // EaseOutCubic
             smallLogoCurrentY = smallLogoStartY + (smallLogoTargetY - smallLogoStartY) * easedProgress;
@@ -783,7 +851,7 @@ class TitleScreen : IScreen {
                 smallLogoCurrentY = smallLogoTargetY; 
             }
         } else if (smallLogoAnimatingOut) {
-            smallLogoAnimationTimer += deltaTime;
+            smallLogoAnimationTimer += dt;
             float progress = Clamp(smallLogoAnimationTimer / smallLogoAnimationDuration, 0.0f, 1.0f);
             float easedProgress = 1.0f - pow(1.0f - progress, 3.0f); // EaseOutCubic
             smallLogoCurrentY = smallLogoTargetY + (smallLogoStartY - smallLogoTargetY) * easedProgress;
@@ -796,12 +864,12 @@ class TitleScreen : IScreen {
         }
 
         // --- Main Menu Buttons Animation Control & Execution ---
-        if (state == TitleState.MAINMENU && !mainMenuButtonsAreShown && !mainMenuButtonsAnimatingIn && !mainMenuButtonsAnimatingOut) {
+        if ((state == TitleState.MAINMENU || state == TitleState.OPTIONS) && !mainMenuButtonsAreShown && !mainMenuButtonsAnimatingIn && !mainMenuButtonsAnimatingOut) {
             mainMenuButtonsAnimatingIn = true;
             mainMenuButtonsAnimatingOut = false; // Ensure out is false
             mainMenuButtonsAnimationTimer = 0.0f;
             mainMenuButtonCurrentX = mainMenuButtonStartX; // Start from off-screen
-        } else if (state != TitleState.MAINMENU && (mainMenuButtonsAreShown || mainMenuButtonsAnimatingIn) && !mainMenuButtonsAnimatingOut) { // MODIFIED condition
+        } else if ((state != TitleState.MAINMENU && state != TitleState.OPTIONS) && (mainMenuButtonsAreShown || mainMenuButtonsAnimatingIn) && !mainMenuButtonsAnimatingOut) { // MODIFIED condition
             mainMenuButtonsAnimatingOut = true;
             if (mainMenuButtonsAnimatingIn) {
                 mainMenuButtonsAnimatingIn = false; // Stop "in" animation if it was active
@@ -810,7 +878,7 @@ class TitleScreen : IScreen {
         }
 
         if (mainMenuButtonsAnimatingIn) {
-            mainMenuButtonsAnimationTimer += deltaTime;
+            mainMenuButtonsAnimationTimer += dt;
             float progress = mainMenuButtonsAnimationTimer / mainMenuButtonsAnimationDuration;
             if (progress >= 1.0f) {
                 progress = 1.0f;
@@ -823,7 +891,7 @@ class TitleScreen : IScreen {
                 mainMenuButtonRects[i].x = mainMenuButtonCurrentX;
             }
         } else if (mainMenuButtonsAnimatingOut) {
-            mainMenuButtonsAnimationTimer += deltaTime;
+            mainMenuButtonsAnimationTimer += dt;
             float progress = mainMenuButtonsAnimationTimer / mainMenuButtonsAnimationDuration;
             if (progress >= 1.0f) {
                 progress = 1.0f;
@@ -856,14 +924,14 @@ class TitleScreen : IScreen {
 
             // Animate logo
             if (logoPosition.y > -logoTexture.height) {
-                logoPosition.y -= offScreenAnimationSpeed * deltaTime;
+                logoPosition.y -= offScreenAnimationSpeed * dt;
             } else {
                 logoOffScreen = true;
             }
 
             // Animate logo2
             if (logo2Position.y > -logo2Texture.height) {
-                logo2Position.y -= offScreenAnimationSpeed * deltaTime;
+                logo2Position.y -= offScreenAnimationSpeed * dt;
             } else {
                 logo2OffScreen = true;
             }
@@ -877,9 +945,9 @@ class TitleScreen : IScreen {
 
             // Animate button: scale up and fade out
             if (buttonClickedOnce && buttonFadeOutAlpha > 0.0f) {
-                buttonFadeOutAlpha -= 1.5f * deltaTime; // Adjust fade speed as needed
-                buttonScale.x += 0.75f * deltaTime;      // Adjust scale speed as needed
-                buttonScale.y += 0.75f * deltaTime;
+                buttonFadeOutAlpha -= 1.5f * dt; // Adjust fade speed as needed
+                buttonScale.x += 0.75f * dt;      // Adjust scale speed as needed
+                buttonScale.y += 0.75f * dt;
                 
                 // Adjust button position to keep it centered as it scales up
                 // This assumes buttonPosition was its top-left for the initial pulse.
@@ -923,7 +991,7 @@ class TitleScreen : IScreen {
             float rightX;
             
             if (abs(menuGadgetsPosition.y - menuGadgetsTargetY) > 0.5f) { // Check if not close enough to target
-                menuGadgetsPosition.y += (menuGadgetsTargetY - menuGadgetsPosition.y) * menuGadgetsEasingFactor * deltaTime;
+                menuGadgetsPosition.y += (menuGadgetsTargetY - menuGadgetsPosition.y) * menuGadgetsEasingFactor * dt;
                 
                 // Position buttons with same relative positions but adjusted for current gadget position
                 centerY = menuGadgetsPosition.y + (menuGadgetsTexture.height * menuGadgetsScale) / 2.0f;
@@ -976,7 +1044,7 @@ class TitleScreen : IScreen {
 
         // Handle fade from black effect
         if (screenFadeAlpha > 0.0f) { // No change here, initial fade is fine
-            screenFadeAlpha -= deltaTime * 2.0f; 
+            screenFadeAlpha -= dt * 2.0f; 
             if (screenFadeAlpha < 0.0f) {
                 screenFadeAlpha = 0.0f;
                 logoAnimationStarted = true;
@@ -988,7 +1056,7 @@ class TitleScreen : IScreen {
             float easingFactor = 4.0f; 
             
             static float logoPosTimer = 0.0f;
-            logoPosTimer += deltaTime;
+            logoPosTimer += dt;
             if (logoPosTimer >= 1.0f) {
                 logoPosTimer = 0.0f;
                 writeln("Logo position debug - current Y: ", logoPosition.y, " target Y: ", logoTargetY);
@@ -996,7 +1064,7 @@ class TitleScreen : IScreen {
             }
             
             if (logoPosition.y > logoTargetY) {
-                logoPosition.y = logoPosition.y + (logoTargetY - logoPosition.y) * easingFactor * deltaTime;
+                logoPosition.y = logoPosition.y + (logoTargetY - logoPosition.y) * easingFactor * dt;
                 if (logoPosition.y < logoTargetY) {
                     logoPosition.y = logoTargetY; // Snap to target position
                 }
@@ -1008,14 +1076,14 @@ class TitleScreen : IScreen {
             
             // Force logo to reach target after 3 seconds to avoid potential animation glitches
             static float logoForceTimer = 0.0f;
-            logoForceTimer += deltaTime;
+            logoForceTimer += dt;
             if (logoForceTimer > 3.0f && logoAnimationStarted) {
                 logoPosition.y = logoTargetY;
             }
         }
 
         // Update position of planet
-        planetPosition.y -= 0.75f * deltaTime; // Move planet downwards
+        planetPosition.y -= 1.75f * dt; // Move planet downwards
         if (planetPosition.y > VIRTUAL_SCREEN_HEIGHT) { // Changed
             planetPosition.y = -planetTexture.height; // Reset position when it goes off screen
         }
@@ -1023,8 +1091,8 @@ class TitleScreen : IScreen {
         // Optimize sparkle animation - don't do heavy image manipulation every frame
         // Instead update the animation less frequently
         static float sparkleUpdateTime = 0.0f;
-        sparkleTimer += deltaTime;
-        sparkleUpdateTime += deltaTime;
+        sparkleTimer += dt;
+        sparkleUpdateTime += dt;
         
         // Only update sparkle animation every 100ms (10 times per second) instead of every frame
         if (sparkleUpdateTime >= 0.1f) {
@@ -1040,8 +1108,8 @@ class TitleScreen : IScreen {
         }
 
         // Update sparkle animation
-        sparkleFrameTimer += deltaTime;
-        sparkleStarTimer += deltaTime;
+        sparkleFrameTimer += dt;
+        sparkleStarTimer += dt;
         
         // Choose a new star to sparkle every few seconds
         if (!sparkleActive || sparkleStarTimer > 3.0f) {
@@ -1078,11 +1146,11 @@ class TitleScreen : IScreen {
                         buttonAppearDelayTimer = 0.0f;
                     }
                     if (buttonAppearDelayTimer < 2.0f) {
-                        buttonAppearDelayTimer += deltaTime;
+                        buttonAppearDelayTimer += dt;
                     } else {
                         // Improved animation with smoother transition from scale-in to pulsing
                         static float buttonAnimTime = 0.0f;
-                        buttonAnimTime += deltaTime;
+                        buttonAnimTime += dt;
                         
                         // Combined smooth scale-in and pulse effect
                         float baseScale = 0.0f;
@@ -1248,22 +1316,27 @@ class TitleScreen : IScreen {
                     );
                     
                     // Create hitboxes for the bottom menu buttons
-                    Vector2 toggleModesSize = MeasureTextEx(fontFamily[0], toggleModesText.toStringz(), 20, 1.0f);
+                    float menuWidth = menuGadgetsTexture.width * menuGadgetsScale;
+                    float menuHeight = 628 * menuGadgetsScale;
+                    float buttonY = menuGadgetsPosition.y + menuHeight + 50.0f; // 30px below menu gadgets
+                    
+                    float leftButtonX = menuGadgetsPosition.x + menuWidth * 0.25f; // 25% from left
+                    float rightButtonX = menuGadgetsPosition.x + menuWidth * 0.75f;
+
+                    // Make the hitboxes larger for easier clicking (e.g., 1.5x the button image size)
+                    float hitboxScale = 1.5f;
                     Rectangle toggleModesRect = Rectangle(
-                        centerX - toggleModesSize.x / 2.0f,
-                        menuGadgetsPosition.y + menuGadgetsTexture.height * menuGadgetsScale - 110, // Updated to match new position
-                        toggleModesSize.x,
-                        20
+                        leftButtonX - (buttonWidth * hitboxScale / 2.0f), 
+                        buttonY - (buttonHeight * hitboxScale / 2.0f), // Center vertically
+                        buttonWidth * hitboxScale, buttonHeight * hitboxScale
                     );
-                    
-                    Vector2 returnToMenuSize = MeasureTextEx(fontFamily[0], returnToMenuText.toStringz(), 20, 1.0f);
+
                     Rectangle returnToMenuRect = Rectangle(
-                        centerX - returnToMenuSize.x / 2.0f,
-                        menuGadgetsPosition.y + menuGadgetsTexture.height * menuGadgetsScale - 70, // Updated to match new position
-                        returnToMenuSize.x,
-                        20
+                        rightButtonX - (buttonWidth * hitboxScale / 2.0f),
+                        buttonY - (buttonHeight * hitboxScale / 2.0f),
+                        buttonWidth * hitboxScale, buttonHeight * hitboxScale
                     );
-                    
+
                     // Check for hover states
                     int currentHoveredButton = 0; // Track which button is currently hovered
                     
@@ -1361,7 +1434,7 @@ class TitleScreen : IScreen {
                         }
                         else if (returnToMenuButtonHovered) {
                             PlaySound(mainMenuMouseClickSound);
-                            // Return to main menu
+                            state = TitleState.MAINMENU;
                             writeln("Return to Main Menu selected");
                         }
                         else {
@@ -1379,7 +1452,7 @@ class TitleScreen : IScreen {
         // Update star field effect
         if (stars is null) {
             // Initialize stars only once - limit to 200 stars for better performance
-            int starCount = 200; // Reduced from 400 to 200 
+            int starCount = 400; // Reduced from 400 to 200 
             stars = new Star[starCount];
             for (int i = 0; i < starCount; i++) {
                 stars[i] = Star(
@@ -1398,24 +1471,24 @@ class TitleScreen : IScreen {
         else {
             // Update all stars at once
             for (int i = 0; i < stars.length; i++) {
-                stars[i].update(deltaTime);
+                stars[i].update(dt);
             }
         }
 
         // Update logo2 fade-in effect after 2 seconds (only if not moving off AND button not clicked)
         if (!titleElementsMovingOff && !buttonClickedOnce) { // MODIFIED: Added !buttonClickedOnce
             static float logo2FadeInTimer = 0.0f;
-            logo2FadeInTimer += deltaTime;
+            logo2FadeInTimer += dt;
 
             if (!fadeInComplete && logo2FadeInTimer >= 2.0f && whitenedLogo2Alpha < 1.0f) {
-                whitenedLogo2Alpha += deltaTime * 3.0f; 
+                whitenedLogo2Alpha += dt * 3.0f; 
                 if (whitenedLogo2Alpha >= 1.0f) {
                     whitenedLogo2Alpha = 1.0f; 
                     fadeInComplete = true;
                 }
             }
             else if (fadeInComplete && logo2FadeInTimer >= 2.4f) { 
-                whitenedLogo2Alpha -= deltaTime * 3.0f; 
+                whitenedLogo2Alpha -= dt * 3.0f; 
                 if (whitenedLogo2Alpha <= 0.0f) {
                     whitenedLogo2Alpha = 0.0f; 
                 }
@@ -1424,12 +1497,12 @@ class TitleScreen : IScreen {
 
         // --- MIST SCROLLING ---
         // Scroll background mist left
-        mistBackgroundOffsetX -= mistBackgroundScrollSpeed * deltaTime;
+        mistBackgroundOffsetX -= mistBackgroundScrollSpeed * dt;
         if (mistBackgroundOffsetX <= -mistBackgroundTexture.width) {
             mistBackgroundOffsetX += mistBackgroundTexture.width;
         }
         // Scroll foreground mist right
-        mistForegroundOffsetX += mistForegroundScrollSpeed * deltaTime;
+        mistForegroundOffsetX += mistForegroundScrollSpeed * dt;
         if (mistForegroundOffsetX >= mistForegroundTexture.width) {
             mistForegroundOffsetX -= mistForegroundTexture.width;
         }
@@ -1533,6 +1606,7 @@ class TitleScreen : IScreen {
                 );
 
                 if (!buttonClickedOnce && CheckCollisionPointRec(GetMousePositionVirtual(), buttonRect)) { // Changed
+                   
                     textureToDraw = buttonHoveredTexture;
                 }
 
@@ -1589,6 +1663,48 @@ class TitleScreen : IScreen {
                 Color(255, 255, 255, cast(uint8_t)(255 * whitenedLogo2Alpha)));
         }
 
+        // Animate the subtitle (REMASTERED) logo scaling from large to 0.5f
+        static float subtitleAnimTimer = 0.0f;
+        static bool subtitleAnimStarted = false;
+        static float subtitleScaleAnimated = 2.5f; // Start really huge
+
+        if (whitenedLogo2Alpha == 0.0f && fadeInComplete) { // Only draw subtitle if logo2 is faded out
+            if (!subtitleAnimStarted) {
+                subtitleAnimStarted = true;
+                subtitleAnimTimer = 0.0f;
+                subtitleScaleAnimated = 2.5f; // Reset to huge
+            }
+            // Animate scale down over 0.35 seconds
+            if (subtitleScaleAnimated > 0.5f) {
+                subtitleAnimTimer += GetFrameTime();
+                float t = clamp(subtitleAnimTimer / 0.35f, 0.0f, 1.0f);
+                // Ease out cubic for smooth effect
+                float eased = 1.0f - pow(1.0f - t, 3.0f);
+                subtitleScaleAnimated = 2.5f + (0.5f - 2.5f) * eased;
+                if (subtitleScaleAnimated < 0.5f) subtitleScaleAnimated = 0.5f;
+            }
+            float scaledSubtitleWidth = subtitleTexture.width * subtitleScaleAnimated;
+            float scaledSubtitleHeight = subtitleTexture.height * subtitleScaleAnimated;
+            DrawTexturePro(
+                subtitleTexture,
+                Rectangle(0, 0, subtitleTexture.width, subtitleTexture.height),
+                Rectangle(
+                    VIRTUAL_SCREEN_WIDTH / 2 - scaledSubtitleWidth / 2,
+                    logo2Position.y + logo2Texture.height * 0.5f + 20.0f,
+                    scaledSubtitleWidth,
+                    scaledSubtitleHeight
+                ),
+                Vector2(0, 0),
+                0.0f,
+                Colors.WHITE
+            );
+        } else {
+            // Reset animation state if not visible
+            subtitleAnimStarted = false;
+            subtitleAnimTimer = 0.0f;
+            subtitleScaleAnimated = 2.5f;
+        }
+ 
         // Draw fade from black overlay last so it covers everything
         if (screenFadeAlpha > 0.0f) {
             DrawRectangle(0, 0, VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT, // Changed
@@ -1622,8 +1738,8 @@ class TitleScreen : IScreen {
             
             float leftX = menuGadgetsPosition.x + menuWidth * 0.255f; 
             float rightX = menuGadgetsPosition.x + menuWidth * 0.745f; 
-            float topY = menuGadgetsPosition.y + menuHeight * 0.275f;
-            float bottomY = menuGadgetsPosition.y + menuHeight * 0.815f;
+            float topY = menuGadgetsPosition.y + menuHeight * 0.272f;
+            float bottomY = menuGadgetsPosition.y + menuHeight * 0.81f;
 
             // --- Draw Button Images with Hover Scale ---
             float baseButtonScale = 1.0f;
@@ -1718,7 +1834,7 @@ class TitleScreen : IScreen {
             }
 
             // Draw the welcome text above the select game mode text
-            float welcomeTextFontSize = 20.0f;
+            float welcomeTextFontSize = 24.0f;
             float welcomeTextY = menuGadgetsPosition.y + 42.0f;
             float welcomeTextX = menuGadgetsPosition.x + (menuGadgetsTexture.width * menuGadgetsScale) / 2.0f - MeasureTextEx(app.fontFamily[2], welcomeText.toStringz(), welcomeTextFontSize, 1.0f).x / 2.0f;
             DrawTextEx(app.fontFamily[2], welcomeText.toStringz(), Vector2(welcomeTextX, welcomeTextY), welcomeTextFontSize, 1.0f, Colors.WHITE);
@@ -1728,8 +1844,127 @@ class TitleScreen : IScreen {
             float selectTextY = menuGadgetsPosition.y + 76.0f;
             float selectTextX = menuGadgetsPosition.x + (menuGadgetsTexture.width * menuGadgetsScale) / 2.0f - MeasureTextEx(app.fontFamily[0], selectGameModeText.toStringz(), selectTextFontSize, 1.0f).x / 2.0f;
             DrawTextEx(app.fontFamily[0], selectGameModeText.toStringz(), Vector2(selectTextX, selectTextY), selectTextFontSize, 1.0f, Colors.WHITE);
+        
+               BeginBlendMode(BlendMode.BLEND_ALPHA); // Enable alpha blending
+    
+                if (classicButtonHovered) {
+                    Vector2 hoverPos = Vector2(
+                        leftX + 3.0f - (orbHoverTexture.width / 2.0f), // Center the hover texture
+                        topY - (orbHoverTexture.height / 2.0f)
+                    );
+                    DrawTextureEx(orbHoverTexture, hoverPos, 0.0f, 1.0f, Color(255, 170, 230, 255)); // Lighter pink
+                }
+                if (actionButtonHovered) {
+                    Vector2 hoverPos = Vector2(
+                        rightX - (orbHoverTexture.width / 2.0f),
+                        topY - (orbHoverTexture.height / 2.0f)
+                    );
+                    DrawTextureEx(orbHoverTexture, hoverPos, 0.0f, 1.0f, Color(255, 170, 230, 255)); // Brighter pink
+                }
+                if (puzzleButtonHovered) {
+                    Vector2 hoverPos = Vector2(
+                        leftX + 3.0f - (orbHoverTexture.width / 2.0f),
+                        bottomY - (orbHoverTexture.height / 2.0f)
+                    );
+                    DrawTextureEx(orbHoverTexture, hoverPos, 0.0f, 1.0f, Color(255, 170, 230, 255)); // Brighter pink
+                }
+                if (endlessButtonHovered) {
+                    Vector2 hoverPos = Vector2(
+                        rightX - (orbHoverTexture.width / 2.0f),
+                        bottomY - (orbHoverTexture.height / 2.0f)
+                    );
+                    DrawTextureEx(orbHoverTexture, hoverPos, 0.0f, 1.0f, Color(255, 170, 230, 255)); // Brighter pink
+                }
+    
+                EndBlendMode(); // Disable alpha blending
         }
         
+        // Draw the game menu buttons
+        if (state == TitleState.GAMEMENU) {
+            float menuWidth = menuGadgetsTexture.width * menuGadgetsScale;
+            float menuHeight = 628 * menuGadgetsScale;
+            float buttonY = menuGadgetsPosition.y + menuHeight + 50.0f; // 30px below menu gadgets
+            
+            // Left button - "Toggle Secret Modes"
+            float leftButtonX = menuGadgetsPosition.x + menuWidth * 0.25f;
+            DrawTextureEx(mainMenuButtonTexture, 
+                Vector2(leftButtonX - (mainMenuButtonTexture.width / 2.0f), 
+                        buttonY - (mainMenuButtonTexture.height / 2.0f)), 
+                0.0f, 1.0f, Colors.WHITE);
+            
+            // Right button - "Return to Main Menu"
+            float rightButtonX = menuGadgetsPosition.x + menuWidth * 0.75f;
+            DrawTextureEx(mainMenuButtonTexture, 
+                Vector2(rightButtonX - (mainMenuButtonTexture.width / 2.0f), 
+                        buttonY - (mainMenuButtonTexture.height / 2.0f)), 
+                0.0f, 1.0f, Colors.WHITE);
+
+            // Draw button hover effects
+            BeginBlendMode(BlendMode.BLEND_ADDITIVE); // Use additive blending for highlight
+
+            // Set highlight scale factors
+            float highlightScaleX = 1.7f;
+            float highlightScaleY = 1.5f;
+
+            float scaledHighlightWidth = mainMenuButtonHighlightTexture.width * highlightScaleX;
+            float scaledHighlightHeight = mainMenuButtonHighlightTexture.height * highlightScaleY;
+
+            // Calculate highlight positions for each button
+            float toggleHighlightX = leftButtonX - (mainMenuButtonHighlightTexture.width * highlightScaleX) / 2.0f;
+            float toggleHighlightY = buttonY - (mainMenuButtonHighlightTexture.height * highlightScaleY) / 3.0f;
+            float returnHighlightX = rightButtonX - (mainMenuButtonHighlightTexture.width * highlightScaleX) / 2.0f;
+            float returnHighlightY = buttonY - (mainMenuButtonHighlightTexture.height * highlightScaleY) / 3.0f;
+
+            if (toggleModesButtonHovered) {
+                DrawTexturePro(
+                    mainMenuButtonHighlightTexture,
+                    Rectangle(0, 0, mainMenuButtonHighlightTexture.width, mainMenuButtonHighlightTexture.height),
+                    Rectangle(toggleHighlightX, toggleHighlightY, scaledHighlightWidth, scaledHighlightHeight),
+                    Vector2(0, 0), // Origin top-left
+                    0.0f,
+                    Colors.WHITE
+                );
+            }
+            else if (returnToMenuButtonHovered) {
+                DrawTexturePro(
+                    mainMenuButtonHighlightTexture,
+                    Rectangle(0, 0, mainMenuButtonHighlightTexture.width, mainMenuButtonHighlightTexture.height),
+                    Rectangle(returnHighlightX, returnHighlightY, scaledHighlightWidth, scaledHighlightHeight),
+                    Vector2(0, 0), // Origin top-left
+                    0.0f,
+                    Colors.WHITE
+                );
+            }
+            EndBlendMode();
+            
+            // Draw button text
+            float buttonTextSize = 28.0f;
+            
+            // "Toggle Secret Modes" text
+            Vector2 toggleTextSize = MeasureTextEx(app.fontFamily[1], toggleModesText.toStringz(), buttonTextSize, 1.0f);
+            float toggleTextX = leftButtonX - toggleTextSize.x / 2.0f;
+            float toggleTextY = buttonY - toggleTextSize.y / 3.0f; // Adjusted to center vertically
+            DrawTextEx(app.fontFamily[1], toggleModesText.toStringz(),
+                        Vector2(toggleTextX, toggleTextY),
+                        buttonTextSize, 1.0f, Colors.WHITE);
+            // Make blue outline for text
+            BeginBlendMode(BlendMode.BLEND_ADDITIVE);
+            DrawTextEx(app.fontFamily[1], toggleModesText.toStringz(), Vector2(toggleTextX + 1, toggleTextY + 1), buttonTextSize, 1.0f, Colors.BLUE);
+            EndBlendMode();
+            
+            // "Return to Main Menu" text
+            Vector2 returnTextSize = MeasureTextEx(app.fontFamily[1], returnToMenuText.toStringz(), buttonTextSize, 1.0f);
+            float returnTextX = rightButtonX - returnTextSize.x / 2.0f;
+            float returnTextY = buttonY - returnTextSize.y / 3.0f; // Adjusted to center vertically
+            DrawTextEx(app.fontFamily[1], returnToMenuText.toStringz(),
+                        Vector2(returnTextX, returnTextY),
+                        buttonTextSize, 1.0f, Colors.WHITE);
+            // Make blue outline for text
+            BeginBlendMode(BlendMode.BLEND_ADDITIVE);
+            DrawTextEx(app.fontFamily[1], returnToMenuText.toStringz(), Vector2(returnTextX + 1, returnTextY + 1), buttonTextSize, 1.0f, Colors.BLUE);
+            EndBlendMode();
+        }
+
         // Draw Main Menu Buttons if they should be shown or animating
         if (mainMenuButtonsAreShown || mainMenuButtonsAnimatingIn || mainMenuButtonsAnimatingOut) {
             if (mainMenuButtonTexture.id != 0) { // Only draw if texture is valid
@@ -1767,11 +2002,15 @@ class TitleScreen : IScreen {
                     }
 
                     // Draw Text (centered on the button)
-                    Vector2 textSize = MeasureTextEx(app.fontFamily[0], mainMenuButtonLabels[i].toStringz(), mainMenuButtonFontSize, 1.0f);
+                    Vector2 textSize = MeasureTextEx(app.fontFamily[1], mainMenuButtonLabels[i].toStringz(), mainMenuButtonFontSize, 1.0f);
                     float textX = mainMenuButtonCurrentX + (mainMenuButtonTexture.width - textSize.x) / 2.0f;
-                    float textY = buttonY + (mainMenuButtonTexture.height - textSize.y) / 2.0f;
-                    
-                    DrawTextEx(app.fontFamily[0], mainMenuButtonLabels[i].toStringz(), Vector2(textX, textY), mainMenuButtonFontSize, 1.0f, Colors.WHITE);
+                    float textY = buttonY + (mainMenuButtonTexture.height - textSize.y) * (2.0f / 3.0f); // Adjusted to center vertically
+
+                    DrawTextEx(app.fontFamily[1], mainMenuButtonLabels[i].toStringz(), Vector2(textX, textY), mainMenuButtonFontSize, 1.0f, Colors.WHITE);
+                    // Make blue outline for text
+                    BeginBlendMode(BlendMode.BLEND_ADDITIVE);
+                    DrawTextEx(app.fontFamily[1], mainMenuButtonLabels[i].toStringz(), Vector2(textX + 1, textY + 1), mainMenuButtonFontSize, 1.0f, Colors.BLUE);
+                    EndBlendMode();
                 }
             } else { // Fallback to drawing text only if texture failed (matches old behavior)
                 for (size_t i = 0; i < mainMenuButtonLabels.length; i++) {
@@ -1780,7 +2019,7 @@ class TitleScreen : IScreen {
                     float buttonY = mainMenuButtonTopY + i * textBasedSpacingY; // mainMenuButtonTopY would be text-based from init fallback
                     
                     Color textColor = mainMenuButtonHoverStates[i] ? Colors.YELLOW : Colors.WHITE;
-                    DrawTextEx(app.fontFamily[0], mainMenuButtonLabels[i].toStringz(), Vector2(mainMenuButtonCurrentX, buttonY), mainMenuButtonFontSize, 1.0f, textColor);
+                    DrawTextEx(app.fontFamily[1], mainMenuButtonLabels[i].toStringz(), Vector2(mainMenuButtonCurrentX, buttonY), mainMenuButtonFontSize, 1.0f, textColor);
                 }
             }
         }
@@ -1795,6 +2034,23 @@ class TitleScreen : IScreen {
 
             DrawTextureEx(logoTexture, topLeftBejeweledPos, 0.0f, smallLogoScale, Colors.WHITE);
             DrawTextureEx(logo2Texture, topLeft2Pos, 0.0f, smallLogoScale, Colors.WHITE);
+        
+            // Include the subtitle
+            float smallSubtitleScale = smallLogoScale * 0.5f; // Scale down subtitle
+            float subtitleWidth = subtitleTexture.width * smallSubtitleScale;
+            float subtitleHeight = subtitleTexture.height * smallSubtitleScale;
+            Vector2 subtitlePos = Vector2(
+                topLeftBejeweledPos.x + (logoTexture.width * smallLogoScale - subtitleWidth) / 2.0f,
+                topLeftBejeweledPos.y + logoTexture.height * smallLogoScale + 10.0f // 10px below the logo
+            );
+            DrawTexturePro(
+                subtitleTexture,
+                Rectangle(0, 0, subtitleTexture.width, subtitleTexture.height),
+                Rectangle(subtitlePos.x, subtitlePos.y, subtitleWidth, subtitleHeight),
+                Vector2(0, 0), // Origin top-left
+                0.0f,
+                Colors.WHITE
+            );
         }
 
         // Draw fade from black effect
@@ -1805,6 +2061,20 @@ class TitleScreen : IScreen {
         // DEBUG: Draw current state
         string stateText = "State: " ~ to!string(state);
         DrawTextEx(app.fontFamily[4], stateText.toStringz(), Vector2(10, VIRTUAL_SCREEN_HEIGHT - 30), 20, 1.0f, Colors.WHITE);
+
+        // Draw Copyright Text in LOGO state
+        if (state == TitleState.LOGO) {
+            float copyrightFontSize = 16.0f;
+            Vector2 copyrightTextSize = MeasureTextEx(app.fontFamily[4], copyrightText.toStringz(), copyrightFontSize, 1.0f);
+            float copyrightX = VIRTUAL_SCREEN_WIDTH - copyrightTextSize.x - 10; // 10 pixels from right edge
+            float copyrightY = VIRTUAL_SCREEN_HEIGHT - copyrightTextSize.y - 10; // 10 pixels from bottom edge
+            DrawTextEx(app.fontFamily[4], copyrightText.toStringz(), Vector2(copyrightX, copyrightY), copyrightFontSize, 1.0f, Colors.LIGHTGRAY);
+        }
+
+        // Draw the name entry if it is active
+        if (state == TitleState.OPTIONS && nameEntryDialog.hasNameEntry()) {
+            nameEntryDialog.draw();    
+        }
     }
 
     void unload() {
