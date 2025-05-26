@@ -1717,9 +1717,15 @@ class TitleScreen : IScreen {
                           textFontSize, 1.0f, textColor);
             }
 
+            // Draw the welcome text above the select game mode text
+            float welcomeTextFontSize = 20.0f;
+            float welcomeTextY = menuGadgetsPosition.y + 42.0f;
+            float welcomeTextX = menuGadgetsPosition.x + (menuGadgetsTexture.width * menuGadgetsScale) / 2.0f - MeasureTextEx(app.fontFamily[2], welcomeText.toStringz(), welcomeTextFontSize, 1.0f).x / 2.0f;
+            DrawTextEx(app.fontFamily[2], welcomeText.toStringz(), Vector2(welcomeTextX, welcomeTextY), welcomeTextFontSize, 1.0f, Colors.WHITE);
+
             // Draw the select game mode text at the top of the menu gadgets
-            float selectTextFontSize = 28.0f;
-            float selectTextY = menuGadgetsPosition.y + 24.0f;
+            float selectTextFontSize = 18.0f;
+            float selectTextY = menuGadgetsPosition.y + 76.0f;
             float selectTextX = menuGadgetsPosition.x + (menuGadgetsTexture.width * menuGadgetsScale) / 2.0f - MeasureTextEx(app.fontFamily[0], selectGameModeText.toStringz(), selectTextFontSize, 1.0f).x / 2.0f;
             DrawTextEx(app.fontFamily[0], selectGameModeText.toStringz(), Vector2(selectTextX, selectTextY), selectTextFontSize, 1.0f, Colors.WHITE);
         }
