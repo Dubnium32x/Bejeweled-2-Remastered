@@ -21,7 +21,8 @@ enum TitleState {
     LOGO,
     MAINMENU,
     GAMEMENU,
-    OPTIONS
+    OPTIONS,
+    NAME_ENTRY
 }
 
 enum SettingsState {

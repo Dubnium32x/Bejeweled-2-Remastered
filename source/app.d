@@ -10,6 +10,7 @@ import std.string;
 import std.algorithm;
 
 import data;
+import screens.popups.options;
 import world.screen_manager;
 import world.audio_manager;
 import world.memory_manager;
@@ -23,8 +24,10 @@ Font continuumLight;
 Font continuumMedium;
 Font cristal;
 Font quincy;
+
 // Use __gshared to ensure proper sharing across modules
 __gshared Font[] fontFamily;
+__gshared OptionsScreen optionsScreen; // __gshared if other modules need direct access, otherwise private
 
 // Virtual screen setup
 private const int VIRTUAL_SCREEN_WIDTH = 1600;
@@ -56,9 +59,10 @@ Vector2 GetMousePositionVirtual() {
 
 
 void main() {
+    InitAudioDevice(); // Initialize audio device first
     InitWindow(1600, 900, "Bejeweled 2 Remastered"); // Actual window size
     SetTargetFPS(60);
-    // ToggleBorderlessWindowed(); // Optional: Toggle borderless window mode for fullscreen-like experience
+    // ToggleBorderlessWindowed(); // Initial state can be set here if desired, or managed by options
 
     // Set the default game mode
     data.setCurrentGameMode(GameMode.ORIGINAL);
@@ -102,7 +106,17 @@ void main() {
     // Set the initial screen state using the appropriate method
     screenManager.changeState(ScreenState.INIT);
 
-    // Load the screen
+    optionsScreen = new OptionsScreen();
+    
+    // Check for and apply any pending resolution changes from previous sessions
+    // This happens at startup before any rendering, so it won't cause disruptive flashes
+    try {
+        if (optionsScreen.applyPendingResolutionChanges()) {
+            writeln("Applied pending resolution changes at startup");
+        }
+    } catch (Exception e) {
+        writeln("Error applying pending resolution changes: ", e.msg);
+    }
 
     // start main game loop
     // Use the existing audioManager and screenManager variables
@@ -124,7 +138,7 @@ void main() {
         // --- UPDATE GAME LOGIC ---
         audioManager.update();
         screenManager.update(GetFrameTime());
-        
+
         // --- DRAW GAME TO VIRTUAL SCREEN ---
         BeginTextureMode(virtualScreen);
             ClearBackground(Colors.BLANK); // Clear virtual screen to fully transparent

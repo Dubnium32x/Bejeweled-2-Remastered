@@ -101,12 +101,12 @@ class AudioManager {
      * Params:
      *   filePath = Path to the sound file
      *   audioType = Type of audio (SFX, MUSIC, VOX, AMBIENCE)
-     *   volume = Optional volume override (0.0 to 1.0)
+     *   overrideVolume = Optional volume override (0.0 to 1.0). If -1.0f, uses category volume.
      *   loop = Whether to loop the sound (for music and ambience)
      *   
      * Returns: Success flag
      */
-    bool playSound(string filePath, AudioType audioType, float volume = -1.0f, bool loop = false) {
+    bool playSound(string filePath, AudioType audioType, float overrideVolume = -1.0f, bool loop = false) {
         // Check if the requested audio type is enabled
         final switch (audioType) {
             case AudioType.SFX:
@@ -128,32 +128,45 @@ class AudioManager {
             return false;
         }
         
-        // Use volume from settings if not specified
-        if (volume < 0) {
-            final switch (audioType) {
+        float baseVolume;
+        // Use overrideVolume if provided and valid, otherwise use category volume from audioSettings
+        if (overrideVolume >= 0.0f && overrideVolume <= 1.0f) {
+            baseVolume = overrideVolume;
+        } else {
+            switch (audioType) {
                 case AudioType.SFX:
-                    volume = audioSettings.sfxVolume;
+                    baseVolume = audioSettings.sfxVolume;
                     break;
                 case AudioType.MUSIC:
-                    volume = audioSettings.musicVolume;
+                    baseVolume = audioSettings.musicVolume;
                     break;
                 case AudioType.VOX:
-                    volume = audioSettings.voxVolume;
+                    baseVolume = audioSettings.voxVolume;
                     break;
                 case AudioType.AMBIENCE:
-                    volume = audioSettings.ambienceVolume;
+                    baseVolume = audioSettings.ambienceVolume;
+                    break;
+                default: // Should not happen
+                    baseVolume = 1.0f; 
                     break;
             }
         }
         
-        // Scale volume based on settings
-        float scaledVolume = getScaledVolume(volume, audioType);
+        // Calculate final volume by applying master volume
+        float finalVolume = baseVolume * audioSettings.masterVolume;
+        
+        // Clamp final volume between 0.0 and 1.0
+        if (finalVolume < 0.0f) finalVolume = 0.0f;
+        if (finalVolume > 1.0f) finalVolume = 1.0f;
         
         // Use MemoryManager to load and cache the sound
         if (audioType == AudioType.MUSIC) {
             // Stop any currently playing music first
             if (isMusicPlaying && currentMusic.ctxData != null) {
                 StopMusicStream(currentMusic);
+                // Unload previous music if you want to free memory immediately,
+                // but MemoryManager should handle caching.
+                // memoryManager.unloadMusic(currentMusic); // Optional, depends on MemoryManager strategy
             }
             
             Music music = memoryManager.loadMusic(filePath);
@@ -166,15 +179,15 @@ class AudioManager {
             currentMusic = music;
             isMusicPlaying = true;
             
-            SetMusicVolume(music, scaledVolume);
-            if (loop) {
-                PlayMusicStream(music);
-            } else {
-                UpdateMusicStream(music);
-                PlayMusicStream(music);
-            }
+            SetMusicVolume(music, finalVolume); // Use calculated finalVolume
+            currentMusic.looping = loop; // Set looping before playing for Raylib 5.0+
+
+            PlayMusicStream(music);
+            // For non-looping music that should play once, UpdateMusicStream might be needed
+            // immediately after PlayMusicStream if it doesn't start otherwise.
+            // However, typical usage is to call UpdateMusicStream in the game loop;
             
-            writeln("Started playing music: ", filePath, " with volume ", scaledVolume);
+            writeln("Started playing music: ", filePath, " with volume ", finalVolume);
             return true;
         } else {
             Sound sound = memoryManager.loadSound(filePath);
@@ -182,9 +195,11 @@ class AudioManager {
                 writeln("Failed to load sound: ", filePath);
                 return false;
             }
-            SetSoundVolume(sound, scaledVolume);
+            SetSoundVolume(sound, finalVolume); // Use calculated finalVolume
             PlaySound(sound);
-            return IsSoundPlaying(sound);
+            // Note: IsSoundPlaying(sound) might return false immediately if the sound is very short.
+            // For longer sounds, it's a good check.
+            return true; // Assume success if PlaySound is called.
         }
     }
     
@@ -276,31 +291,22 @@ class AudioManager {
         }
     }
 
-    // Improved volume handling with proper scaling and clamping
-    private float getScaledVolume(float rawVolume, AudioType type) {
-        // Apply master volume scaling
-        float scaledVolume = rawVolume * audioSettings.masterVolume;
-        
-        // Apply type-specific volume scaling
-        final switch (type) {
-            case AudioType.SFX:
-                scaledVolume *= audioSettings.sfxVolume;
-                break;
-            case AudioType.MUSIC:
-                scaledVolume *= audioSettings.musicVolume;
-                break;
-            case AudioType.VOX:
-                scaledVolume *= audioSettings.voxVolume;
-                break;
-            case AudioType.AMBIENCE:
-                scaledVolume *= audioSettings.ambienceVolume;
-                break;
+    /**
+     * Updates the volume of the currently playing music stream based on current audio settings.
+     */
+    public void updateLiveMusicVolume() {
+        if (isMusicPlaying && currentMusic.ctxData != null && audioSettings !is null) {
+            float baseMusicVol = audioSettings.musicVolume; // From settings (0.0-1.0)
+            float masterVol = audioSettings.masterVolume;   // From settings (0.0-1.0)
+            
+            float finalCombinedVolume = baseMusicVol * masterVol;
+            
+            // Clamp finalCombinedVolume
+            if (finalCombinedVolume < 0.0f) finalCombinedVolume = 0.0f;
+            if (finalCombinedVolume > 1.0f) finalCombinedVolume = 1.0f;
+            
+            SetMusicVolume(currentMusic, finalCombinedVolume);
+            // writeln("AudioManager: Live updated current music volume to: ", finalCombinedVolume); // Optional: for debugging
         }
-        
-        // Clamp volume between 0.0 and 1.0
-        if (scaledVolume < 0.0f) scaledVolume = 0.0f;
-        if (scaledVolume > 1.0f) scaledVolume = 1.0f;
-        
-        return scaledVolume;
     }
 }

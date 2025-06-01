@@ -10,6 +10,9 @@ import std.algorithm;
 
 import world.screen_manager;
 import world.screen_states;
+import world.memory_manager;
+import world.audio_manager;
+import data;
 import app;
 import app : VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT, GetMousePositionVirtual;
 
@@ -38,15 +41,10 @@ enum NameEntryState {
     DONE
 };
 
-
 // Define name entry variables
-string playerName = "";
-bool nameEntryActive = false;
-bool nameEntryConfirmed = false;
-bool nameEntryCancelled = false;
-bool nameEntryDone = false;
-int maxNameLength = 20;
-string greeting = "Welcome! Have we met before?";
+int maxNameLength = 12; // Maximum length for the name entry
+string greeting = "Welcome!";
+string followUpQuestion = "Have we met before?";
 string nameEntryPrompt = "Please enter your name:";
 
 // Allow for a robust selection of the name entry characters
@@ -63,6 +61,9 @@ enum NameEntryCharacter {
 }
 
 class NameEntry : IScreen {
+    private MemoryManager memoryManager;
+    private AudioManager audioManager;
+    
     private Texture2D dialogBoxTexture;
     private Texture2D dialogBoxAlpha;
     private Texture2D dialogButtonTexture;
@@ -80,304 +81,291 @@ class NameEntry : IScreen {
     private Sound dialogTypeSound;
 
     Vector2 dialogBoxPosition;
-    Vector2 dialogBoxSize;
+    float dialogBoxSize;
     Vector2 dialogButtonPosition;
-    Vector2 dialogButtonSize;
+    float dialogButtonSize;
     Vector2 editBoxPosition;
-    Vector2 editBoxSize;
-    Vector2 dialogTitlePosition; // Position for the dialog title
+    float editBoxSize;
+    Vector2 dialogTitlePosition;
 
-    NameEntryState nameEntryState = NameEntryState.ACTIVE; // Current state of the name entry
-    // NameEntryCharacter selectedCharacter = NameEntryCharacter.NONE; // Currently selected character for name entry - REMOVED, direct char input
-    private string currentInputName; // Internal buffer for player name
+    NameEntryState nameEntryState = NameEntryState.ACTIVE;
+    private string currentInputName;
+    public string playerNameOutput;
 
-    // Define variables for animating the dialog box
-    float dialogBoxScale = 0.0f; // Scale for the dialog box animation
-    float dialogBoxAlphaValue = 0.0f; // Alpha value for the dialog box fade-in
-    float dialogButtonScale = 0.0f; // Scale for the dialog button animation
-    float dialogButtonAlphaValue = 0.0f; // Alpha value for the dialog button fade-in
-    float editBoxScale = 0.0f; // Scale for the edit box animation
-    float editBoxAlphaValue = 0.0f; // Alpha value for the edit box fade-in
-    float dialogTitleScale = 0.0f; // Scale for the dialog title animation
-    float dialogTitleAlphaValue = 0.0f; // Alpha value for the dialog title fade-in
-    float dialogAnimationSpeed = 0.05f; // Speed of the dialog box assets
+    // Animation variables
+    float dialogBoxScale = 0.0f;
+    float dialogBoxAlphaValue = 0.0f;
+    float dialogButtonScale = 0.0f;
+    float dialogButtonAlphaValue = 0.0f;
+    float editBoxScale = 0.0f;
+    float editBoxAlphaValue = 0.0f;
+    float dialogTitleScale = 0.0f;
+    float dialogTitleAlphaValue = 0.0f;
+    float dialogAnimationSpeed = 2.0f;
 
-    // Constructor to initialize the name entry screen
+    // Public flag to indicate if the dialog is currently active
+    private bool isActive = false;
+    
+    // Text box properties
+    Rectangle textBox;
+    float cursorBlinkTimer = 0.0f;
+
+    // Public property to check if the dialog is active
+    public bool active() @property { return isActive; }
+
     public this() {
-        // NOTE: Texture and Sound loading moved to initialize()
-        // Initialize dialog box position and size
+        memoryManager = MemoryManager.instance();
+        audioManager = AudioManager.getInstance();
         initialize();
-        currentInputName = ""; // Initialize player name
-    }
-
-    static NameEntry create() {
-        // PlaySound(LoadSound("resources/audio/sfx/twist_notify.ogg")); // Sound will be played by TitleScreen
-        return new NameEntry();
     }
 
     void initialize() {
         // Initialize dialog box position and size
-        // Centering the dialog box (though it's not drawn for now)
-        dialogBoxSize = Vector2(500, 250); // Adjusted size
+        dialogBoxSize = 2.0f;
         dialogBoxPosition = Vector2(
-            (VIRTUAL_SCREEN_WIDTH - dialogBoxSize.x) / 2,
-            (VIRTUAL_SCREEN_HEIGHT - dialogBoxSize.y) / 2
+            (VIRTUAL_SCREEN_WIDTH - dialogBoxSize) / 2.0f,
+            (VIRTUAL_SCREEN_HEIGHT - dialogBoxSize) / 2.0f
         );
 
-        // These are not used if the box isn't drawn, but kept for potential future use
-        dialogButtonPosition = Vector2(dialogBoxPosition.x + 50, dialogBoxPosition.y + dialogBoxSize.y - 70);
-        dialogButtonSize = Vector2(150, 40);
-        editBoxPosition = Vector2(dialogBoxPosition.x + 50, dialogBoxPosition.y + 150);
-        editBoxSize = Vector2(dialogBoxSize.x - 100, 40);
-        dialogTitlePosition = Vector2(dialogBoxPosition.x + (dialogBoxSize.x / 2), dialogBoxPosition.y + 20);
+        // Load textures
+        dialogBoxTexture = memoryManager.loadTexture("resources/image/ui/dialog/dialog_box.png");
+        // dialogBoxAlpha = memoryManager.loadTexture("resources/image/ui/dialog/dialog_box_alpha.png");
+        // dialogButtonTexture = memoryManager.loadTexture("resources/image/ui/dialog/dialog_button.png");
+        // dialogButtonAlpha = memoryManager.loadTexture("resources/image/ui/dialog/dialog_button_alpha.png");
+        // dialogButtonHover = memoryManager.loadTexture("resources/image/ui/dialog/dialog_button_hover.png");
+        // dialogButtonHoverAlpha = memoryManager.loadTexture("resources/image/ui/dialog/dialog_button_hover_alpha.png");
+        // dialogTitleTexture = memoryManager.loadTexture("resources/image/ui/dialog/dialog_title.png");
+        // dialogTitleAlpha = memoryManager.loadTexture("resources/image/ui/dialog/dialog_title_alpha.png");
+        // editBoxTexture = memoryManager.loadTexture("resources/image/ui/dialog/edit_box.png");
 
-        dialogBoxTexture = LoadTexture("resources/image/DIALOGBOX.png");
-        SetTextureFilter(dialogBoxTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
-        dialogBoxAlpha = LoadTexture("resources/image/DIALOGBOX_.png");
-        SetTextureFilter(dialogBoxAlpha, TextureFilter.TEXTURE_FILTER_BILINEAR);
-        dialogButtonTexture = LoadTexture("resources/image/DialogButton.png");
-        SetTextureFilter(dialogButtonTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
-        dialogButtonAlpha = LoadTexture("resources/image/DialogButton_.png");
-        SetTextureFilter(dialogButtonAlpha, TextureFilter.TEXTURE_FILTER_BILINEAR);
-        dialogButtonHover = LoadTexture("resources/image/DialogButtonglow.png");
-        SetTextureFilter(dialogButtonHover, TextureFilter.TEXTURE_FILTER_BILINEAR);
-        dialogButtonHoverAlpha = LoadTexture("resources/image/DialogButtonglow_.png");
-        SetTextureFilter(dialogButtonHoverAlpha, TextureFilter.TEXTURE_FILTER_BILINEAR);
-        dialogTitleTexture = LoadTexture("resources/image/DialogTitle.png");
-        SetTextureFilter(dialogTitleTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
-        dialogTitleAlpha = LoadTexture("resources/image/DialogTitle_.png");
-        SetTextureFilter(dialogTitleAlpha, TextureFilter.TEXTURE_FILTER_BILINEAR);
-        editBoxTexture = LoadTexture("resources/image/EditBox.png");
-        // SetTextureFilter(editBoxTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
+        // Initialize text box
+        textBox = Rectangle(
+            VIRTUAL_SCREEN_WIDTH / 2 - 100, 
+            dialogBoxPosition.y + 20, 
+            200, 
+            40
+        );
+
+        reset();
+        writeln("NameEntry: Initialized.");
+    }
+    
+    // Call this to activate and show the dialog
+    public void show() {
+        reset();
+        isActive = true;
+        nameEntryState = NameEntryState.ACTIVE;
         
-        // Load sounds
-        dialogOpenSound = LoadSound("resources/audio/sfx/twist_notify.ogg");
-        dialogCloseSound = LoadSound("resources/audio/sfx/dialog_close.ogg");
-        dialogButtonHoverSound = LoadSound("resources/audio/sfx/mainmenu_mouseover.ogg");
-        dialogButtonClickSound = LoadSound("resources/audio/sfx/mainmenu_mouseclick.ogg"); // Changed from mainmenu_click.ogg
-        dialogTypeSound = LoadSound("resources/audio/sfx/click.ogg");
+        // Explicitly play the "twist_notify.ogg" sound when the dialog is shown.
+        if (audioManager !is null) {
+            // Assuming playSound takes the full path and AudioType.
+            // If "twist_notify.ogg" is not loaded elsewhere, playSound might handle loading it,
+            // or it might fail if it expects pre-loaded sounds by a shorter name/ID.
+            // For now, let's use the full path as per AudioManager's playSound signature.
+            audioManager.playSound("resources/audio/sfx/twist_notify.ogg", AudioType.SFX);
+        }
+        
+        writeln("NameEntry: Dialog shown, attempting to play twist_notify.ogg.");
+    }
 
-        reset(); // Call reset to initialize states
+    // Call this to deactivate and hide the dialog
+    public void hide() {
+        isActive = false;
+        
+        // Play the dialog close sound
+        if (audioManager !is null) {
+            audioManager.playSFX("resources/audio/sfx/menuclick.ogg"); // Assuming this is how your AudioManager plays sounds
+        }
+        
+        writeln("NameEntry: Dialog hidden.");
     }
 
     void reset() {
-        currentInputName = "";
+        isActive = false;
         nameEntryState = NameEntryState.ACTIVE;
-        nameEntryActive = true; // Dialog becomes active
-        nameEntryConfirmed = false;
-        nameEntryCancelled = false;
-        // Reset animation states if they were used
-        dialogBoxScale = 0.0f; 
+        currentInputName = "";
+        playerNameOutput = "";
+        
+        // Reset animation states
+        dialogBoxScale = 0.0f;
         dialogBoxAlphaValue = 0.0f;
-        // ... reset other animation values if needed
+        dialogButtonScale = 0.0f;
+        dialogButtonAlphaValue = 0.0f;
+        editBoxScale = 0.0f;
+        editBoxAlphaValue = 0.0f;
+        dialogTitleScale = 0.0f;
+        dialogTitleAlphaValue = 0.0f;
+        cursorBlinkTimer = 0.0f;
+    
+
+        writeln("NameEntry: Reset to initial state.");
     }
     
     string getPlayerName() {
-        return currentInputName;
+        return playerNameOutput;
     }
 
+    // This method checks if the dialog is currently active
     bool hasNameEntry() {
-        return nameEntryActive;
+        return isActive;
     }
     
     bool isNameEntryConfirmed() {
-        return nameEntryConfirmed;
+        return nameEntryState == NameEntryState.CONFIRMED;
     }
 
     bool isNameEntryCancelled() {
-        return nameEntryCancelled;
+        return nameEntryState == NameEntryState.CANCELLED;
     }
 
     void update(float deltaTime) {
-        if (!nameEntryActive) return;
-        switch (nameEntryState) {
-            case NameEntryState.ACTIVE:
-            // Animate dialog box elements (optional, for future use)
-            if (dialogBoxScale < 1.0f) {
-                dialogBoxScale += dialogAnimationSpeed * deltaTime;
-                dialogBoxAlphaValue += dialogAnimationSpeed * deltaTime;
-            } else {
-                dialogBoxScale = 1.0f;
-                dialogBoxAlphaValue = 1.0f;
-            }
-            if (dialogButtonScale < 1.0f) {
-                dialogButtonScale += dialogAnimationSpeed * deltaTime;
-                dialogButtonAlphaValue += dialogAnimationSpeed * deltaTime;
-            } else {
-                dialogButtonScale = 1.0f;
-                dialogButtonAlphaValue = 1.0f;
-            }
-            if (editBoxScale < 1.0f) {
-                editBoxScale += dialogAnimationSpeed * deltaTime;
-                editBoxAlphaValue += dialogAnimationSpeed * deltaTime;
-            } else {
-                editBoxScale = 1.0f;
-                editBoxAlphaValue = 1.0f;
-            }
-            if (dialogTitleScale < 1.0f) {
-                dialogTitleScale += dialogAnimationSpeed * deltaTime;
-                dialogTitleAlphaValue += dialogAnimationSpeed * deltaTime;
-            } else {
-                dialogTitleScale = 1.0f;
-                dialogTitleAlphaValue = 1.0f;
-            }
-            dialogBoxAlphaValue = clamp(dialogBoxAlphaValue, 0.0f, 1.0f);
-            dialogButtonAlphaValue = clamp(dialogButtonAlphaValue, 0.0f, 1.0f);
-            editBoxAlphaValue = clamp(editBoxAlphaValue, 0.0f, 1.0f);
-            dialogTitleAlphaValue = clamp(dialogTitleAlphaValue, 0.0f, 1.0f);
+        if (!isActive) return;
 
-            // --- Username entry logic ---
-            // Confirm name with Enter
-            if (IsKeyPressed(KeyboardKey.KEY_ENTER)) {
-                if (currentInputName.length > 0) {
-                nameEntryConfirmed = true;
+        // Update animation scales
+        if (dialogBoxScale < 1.0f) {
+            dialogBoxScale += dialogAnimationSpeed * deltaTime;
+            if (dialogBoxScale > 1.0f) dialogBoxScale = 1.0f;
+        }
+        
+        if (dialogButtonScale < 1.0f) {
+            dialogButtonScale += dialogAnimationSpeed * deltaTime;
+            if (dialogButtonScale > 1.0f) dialogButtonScale = 1.0f;
+        }
+
+        // Update cursor blink timer
+        cursorBlinkTimer += deltaTime;
+        if (cursorBlinkTimer >= 0.5f) {
+            cursorBlinkTimer = 0.0f;
+        }
+
+        // Handle keyboard input for name entry
+        int key = GetKeyPressed();
+        while (key > 0) {
+            if ((key >= 32) && (key <= 125) && (currentInputName.length < maxNameLength)) {
+                currentInputName ~= cast(char)key;
+                
+                if (audioManager !is null) {
+                    // Assuming "click.ogg" is the typing sound and it's loaded.
+                    // If AudioManager uses short names for preloaded sounds, adjust this.
+                    audioManager.playSound("resources/audio/sfx/click.ogg", AudioType.SFX);
+                }
+            }
+            key = GetKeyPressed();
+        }
+
+        // Handle backspace
+        if (IsKeyPressed(KeyboardKey.KEY_BACKSPACE)) {
+            if (currentInputName.length > 0) {
+                currentInputName = currentInputName[0 .. $ - 1];
+                
+                if (audioManager !is null) {
+                    audioManager.playSound("resources/audio/sfx/click.ogg", AudioType.SFX);
+                }
+            }
+        }
+
+        // Handle enter (confirm)
+        if (IsKeyPressed(KeyboardKey.KEY_ENTER)) {
+            if (currentInputName.length > 0) {
+                playerNameOutput = currentInputName;
+                data.playerSavedName = playerNameOutput;
+                data.playerHasSavedName = true;
                 nameEntryState = NameEntryState.CONFIRMED;
-                nameEntryActive = false;
-                PlaySound(dialogButtonClickSound);
-                } else {
-                // Optionally play a "cannot confirm empty name" sound
+                isActive = false;
+                
+                if (audioManager !is null) {
+                    // Assuming "dialog_button_click.ogg" is loaded.
+                    audioManager.playSound("resources/audio/sfx/dialog_button_click.ogg", AudioType.SFX);
                 }
+                
+                writeln("NameEntry: Name confirmed - ", playerNameOutput);
             }
-            // Cancel with Escape
-            else if (IsKeyPressed(KeyboardKey.KEY_ESCAPE)) {
-                nameEntryCancelled = true;
-                nameEntryState = NameEntryState.CANCELLED;
-                nameEntryActive = false;
-                PlaySound(dialogCloseSound);
-            }
-            // Handle character input
-            else {
-                int key;
-                // Read all pressed keys this frame
-                while ((key = GetKeyPressed()) != 0) {
-                // Handle backspace
-                if (key == KeyboardKey.KEY_BACKSPACE) {
-                    if (currentInputName.length > 0) {
-                    currentInputName = currentInputName[0 .. $ - 1];
-                    PlaySound(dialogTypeSound);
-                    }
-                }
-                // Accept letters, numbers, and space
-                else if (currentInputName.length < maxNameLength) {
-                    // Letters A-Z
-                    if (key >= KeyboardKey.KEY_A && key <= KeyboardKey.KEY_Z) {
-                    char c;
-                    if (IsKeyDown(KeyboardKey.KEY_LEFT_SHIFT) || IsKeyDown(KeyboardKey.KEY_RIGHT_SHIFT) || IsKeyDown(KeyboardKey.KEY_CAPS_LOCK)) {
-                        c = cast(char)('A' + (key - KeyboardKey.KEY_A));
-                    } else {
-                        c = cast(char)('a' + (key - KeyboardKey.KEY_A));
-                    }
-                    currentInputName ~= c;
-                    PlaySound(dialogTypeSound);
-                    }
-                    // Numbers 0-9
-                    else if (key >= KeyboardKey.KEY_ZERO && key <= KeyboardKey.KEY_NINE) {
-                    char c = cast(char)('0' + (key - KeyboardKey.KEY_ZERO));
-                    currentInputName ~= c;
-                    PlaySound(dialogTypeSound);
-                    }
-                    // Space
-                    else if (key == KeyboardKey.KEY_SPACE) {
-                    currentInputName ~= ' ';
-                    PlaySound(dialogTypeSound);
-                    }
-                }
-                }
-            }
-            break;
+        }
 
-            case NameEntryState.CONFIRMED:
-                nameEntryActive = false; // Dialog is no longer active
-                break;
-
-            case NameEntryState.CANCELLED:
-                nameEntryActive = false; // Dialog is no longer active
-                break;
-            default:
-                break;
+        // Handle escape (cancel)
+        if (IsKeyPressed(KeyboardKey.KEY_ESCAPE)) {
+            nameEntryState = NameEntryState.CANCELLED;
+            isActive = false;
+            
+            if (audioManager !is null) {
+                audioManager.playSound("resources/audio/sfx/dialog_button_click.ogg", AudioType.SFX);
+            }
+            
+            writeln("NameEntry: Cancelled.");
         }
     }
 
     void draw() {
-        if (!nameEntryActive && nameEntryState != NameEntryState.ACTIVE) { // Only draw if active
-             // If we want a fade out effect, it could be handled here based on state
-            // For now, if not active, don't draw.
-            // return; 
+        if (!isActive) return;
+
+        // Draw dialog box background
+        if (dialogBoxTexture.id != 0) {
+            float currentWidth = dialogBoxTexture.width * dialogBoxScale;
+            float currentHeight = dialogBoxTexture.height * dialogBoxScale;
+            float drawX = dialogBoxPosition.x - currentWidth / 2.0f;
+            float drawY = dialogBoxPosition.y - currentHeight / 2.0f;
+
+            DrawTexturePro(
+                dialogBoxTexture,
+                Rectangle(0, 0, dialogBoxTexture.width, dialogBoxTexture.height),
+                Rectangle(drawX, drawY, currentWidth, currentHeight),
+                Vector2(0, 0), 0.0f, Colors.WHITE
+            );
+        } else {
+            // Fallback drawing if texture not loaded
+            DrawRectangleRec(Rectangle(VIRTUAL_SCREEN_WIDTH/2 - 150, VIRTUAL_SCREEN_HEIGHT/2 - 75, 300, 150), Fade(Colors.DARKGRAY, 0.8f));
         }
 
-        // Draw the name entry popup
-        DrawTexturePro(dialogBoxTexture, Rectangle(0, 0, dialogBoxTexture.width, dialogBoxTexture.height), 
-            Rectangle(dialogBoxPosition.x, dialogBoxPosition.y, dialogBoxSize.x * dialogBoxScale, dialogBoxSize.y * dialogBoxScale), 
-            Vector2(0, 0), 0.0f, ColorAlpha(Colors.WHITE, dialogBoxAlphaValue));
-        DrawTexturePro(dialogBoxAlpha, Rectangle(0, 0, dialogBoxAlpha.width, dialogBoxAlpha.height),
-            Rectangle(dialogBoxPosition.x, dialogBoxPosition.y, dialogBoxSize.x * dialogBoxScale, dialogBoxSize.y * dialogBoxScale), 
-            Vector2(0, 0), 0.0f, ColorAlpha(Colors.WHITE, dialogBoxAlphaValue));
-        DrawTexturePro(dialogTitleTexture, Rectangle(0, 0, dialogTitleTexture.width, dialogTitleTexture.height),
-            Rectangle(dialogTitlePosition.x - dialogTitleTexture.width / 2, dialogTitlePosition.y, dialogTitleTexture.width * dialogTitleScale, dialogTitleTexture.height * dialogTitleScale), 
-            Vector2(dialogTitleTexture.width / 2, 0), 0.0f, ColorAlpha(Colors.WHITE, dialogTitleAlphaValue));
-        DrawTexturePro(dialogTitleAlpha, Rectangle(0, 0, dialogTitleAlpha.width, dialogTitleAlpha.height),
-            Rectangle(dialogTitlePosition.x - dialogTitleAlpha.width / 2, dialogTitlePosition.y, dialogTitleAlpha.width * dialogTitleScale, dialogTitleAlpha.height * dialogTitleScale), 
-            Vector2(dialogTitleAlpha.width / 2, 0), 0.0f, ColorAlpha(Colors.WHITE, dialogTitleAlphaValue));
-        DrawTexturePro(editBoxTexture, Rectangle(0, 0, editBoxTexture.width, editBoxTexture.height),
-            Rectangle(editBoxPosition.x, editBoxPosition.y, editBoxSize.x * editBoxScale, editBoxSize.y * editBoxScale), 
-            Vector2(0, 0), 0.0f, ColorAlpha(Colors.WHITE, editBoxAlphaValue));
+        // Draw greeting and prompt
+        DrawTextEx(app.fontFamily[0], greeting.toStringz(), 
+                   Vector2(VIRTUAL_SCREEN_WIDTH / 2 - MeasureTextEx(app.fontFamily[0], greeting.toStringz(), 28, 1).x / 2, 
+                   dialogBoxPosition.y - 60), 28, 1, Colors.WHITE);
         
-
-        float greetingFontSize = 28.0f;
-        float promptFontSize = 22.0f;
-        float nameFontSize = 22.0f;
-        Color textColor = Colors.WHITE; // Text is white in the screenshot
-        Font textFont = app.fontFamily[0]; // Using a default game font, adjust if needed
-
-        // Greeting Text
-        Vector2 greetingTextSize = MeasureTextEx(textFont, greeting.toStringz(), greetingFontSize, 1.0f);
-        float greetingX = (VIRTUAL_SCREEN_WIDTH - greetingTextSize.x) / 2.0f;
-        float greetingY = VIRTUAL_SCREEN_HEIGHT / 2.0f - greetingTextSize.y - promptFontSize - 10; // Position above prompt
-        DrawTextEx(textFont, greeting.toStringz(), Vector2(greetingX, greetingY), greetingFontSize, 1.0f, textColor);
-
-        // Prompt Text
-        Vector2 promptTextSize = MeasureTextEx(textFont, nameEntryPrompt.toStringz(), promptFontSize, 1.0f);
-        float promptX = (VIRTUAL_SCREEN_WIDTH - promptTextSize.x) / 2.0f;
-        float promptY = VIRTUAL_SCREEN_HEIGHT / 2.0f - promptTextSize.y / 2.0f; // Center vertically
-        DrawTextEx(textFont, nameEntryPrompt.toStringz(), Vector2(promptX, promptY), promptFontSize, 1.0f, textColor);
+        DrawTextEx(app.fontFamily[0], nameEntryPrompt.toStringz(), 
+                  Vector2(VIRTUAL_SCREEN_WIDTH / 2 - MeasureTextEx(app.fontFamily[0], nameEntryPrompt.toStringz(), 20, 1).x / 2, 
+                  dialogBoxPosition.y - 20), 20, 1, Colors.WHITE);
         
-        // Player Name Text (acting as the input field display)
-        string displayPlayerName = currentInputName;
-        // Add a blinking cursor or underscore for visual feedback
-        // For simplicity, just display the name for now. A cursor would require a timer.
-        // if (nameEntryState == NameEntryState.ACTIVE && cast(int)(GetTime() * 2.0f) % 2 == 0) { // Blinking cursor
-        //    displayPlayerName ~= "_";
-        // }
+        // Draw text input box
+        DrawRectangleRec(textBox, Colors.LIGHTGRAY);
+        DrawRectangleLinesEx(textBox, 2, Colors.DARKGRAY);
+        DrawTextEx(app.fontFamily[0], currentInputName.toStringz(), 
+                  Vector2(textBox.x + 5, textBox.y + 8), 24, 1, Colors.BLACK);
 
-        Vector2 playerNameTextSize = MeasureTextEx(textFont, displayPlayerName.toStringz(), nameFontSize, 1.0f);
-        float playerNameX = (VIRTUAL_SCREEN_WIDTH - playerNameTextSize.x) / 2.0f; // Centered
-        float playerNameY = promptY + promptTextSize.y + 10; // Position below prompt
-        DrawTextEx(textFont, displayPlayerName.toStringz(), Vector2(playerNameX, playerNameY), nameFontSize, 1.0f, textColor);
-
+        // Draw blinking cursor
+        if (cursorBlinkTimer < 0.25f) {
+            Vector2 textSize = MeasureTextEx(app.fontFamily[0], currentInputName.toStringz(), 24, 1);
+            DrawTextEx(app.fontFamily[0], "_".toStringz(), 
+                      Vector2(textBox.x + 5 + textSize.x, textBox.y + 8), 24, 1, Colors.BLACK);
+        }
+        
+        // Draw instructions
+        DrawTextEx(app.fontFamily[0], "Press ENTER to confirm, ESC to cancel".toStringz(), 
+                  Vector2(VIRTUAL_SCREEN_WIDTH / 2 - MeasureTextEx(app.fontFamily[0], "Press ENTER to confirm, ESC to cancel".toStringz(), 16, 1).x / 2, 
+                  dialogBoxPosition.y + 80), 16, 1, Colors.WHITE);
     }
 
-    override void unload() {
-        // Unload textures and sounds
-        UnloadTexture(dialogBoxTexture);
-        UnloadTexture(dialogBoxAlpha);
-        UnloadTexture(dialogButtonTexture);
-        UnloadTexture(dialogButtonAlpha);
-        UnloadTexture(dialogButtonHover);
-        UnloadTexture(dialogButtonHoverAlpha);
-        UnloadTexture(dialogTitleTexture);
-        UnloadTexture(dialogTitleAlpha);
-        UnloadTexture(editBoxTexture);
+    void unload() {
+        // Unload textures
+        memoryManager.unloadTexture("resources/image/ui/dialog/dialog_box.png");
+        // memoryManager.unloadTexture("resources/image/ui/dialog/dialog_box_alpha.png");
+        // memoryManager.unloadTexture("resources/image/ui/dialog/dialog_button.png");
+        // memoryManager.unloadTexture("resources/image/ui/dialog/dialog_button_alpha.png");
+        // memoryManager.unloadTexture("resources/image/ui/dialog/dialog_button_hover.png
+        // memoryManager.unloadTexture("resources/image/ui/dialog/dialog_button_hover_alpha.png");
+        // memoryManager.unloadTexture("resources/image/ui/dialog/dialog_title.png");
+        // memoryManager.unloadTexture("resources/image/ui/dialog/dialog_title_alpha.png");
+        // memoryManager.unloadTexture("resources/image/ui/dialog/edit_box.png");
 
-        UnloadSound(dialogOpenSound);
-        UnloadSound(dialogCloseSound);
-        UnloadSound(dialogButtonHoverSound);
-        UnloadSound(dialogButtonClickSound);
-        UnloadSound(dialogTypeSound);
+        // Unload sounds
+        // audioManager.unloadSound(dialogOpenSound); // Assuming MemoryManager handles sound unloading by path or Sound object
+        // audioManager.unloadSound(dialogCloseSound);
+        // audioManager.unloadSound(dialogButtonHoverSound);
+        // audioManager.unloadSound(dialogButtonClickSound);
+        // audioManager.unloadSound(dialogTypeSound);
+        // For now, assuming MemoryManager handles unloading if sounds were loaded via it.
+        // If AudioManager loads them directly, it should also unload them.
 
-        // Reset name entry variables
-        currentInputName = ""; // Changed from playerName
-        nameEntryActive = false;
-        nameEntryConfirmed = false;
-        nameEntryCancelled = false;
+        writeln("NameEntry: Unloaded resources.");
     }
+
 }

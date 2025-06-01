@@ -16,6 +16,7 @@ import core.stdc.stdint; // For uint8_t
 
 import data;
 import screens.popups.name_entry;
+import screens.popups.options; // Added import for options screen
 import world.screen_manager;
 import world.memory_manager;
 import world.audio_manager;
@@ -80,6 +81,14 @@ Sound mainMenuGameStartSound;
 Image[] sparkleImages;
 Texture2D[] sparkleFrameTextures;
 
+enum OptionsState {
+    NONE,
+    OPTIONS,
+    LEADERBOARDS,
+    HELP,
+    NAME_ENTRY
+}
+
 float logoFadeAlpha = 0.0f;
 bool isMusicPlaying = false;
 bool playerReady = false;
@@ -141,6 +150,7 @@ class TitleScreen : IScreen {
     private MemoryManager memoryManager;
     private AudioManager audioManager;
     private NameEntry nameEntryDialog; // Changed: Declare without initializing
+    private OptionsScreen optionsPopup; // Added for options popup
 
     // Current state of the screen
     TitleState state;
@@ -369,7 +379,10 @@ class TitleScreen : IScreen {
     void initialize() {
         memoryManager = MemoryManager.instance();
         audioManager = AudioManager.getInstance();
-        nameEntryDialog = new NameEntry(); // Added: Initialize here
+        // Initialize name entry dialog
+        nameEntryDialog = new NameEntry();
+        // Initialize options popup
+        optionsPopup = new OptionsScreen();
 
         // Load textures
         backgroundTexture = LoadTexture("resources/image/backdrops/backdrop_title_A.png");
@@ -624,7 +637,7 @@ class TitleScreen : IScreen {
         mainMenuButtonsAnimationDuration = 0.5f; // Animation duration for buttons
     
         // Play autonomous music if not already playing
-        audioManager.playSound("resources/audio/music/arranged/Autonomous.ogg", AudioType.MUSIC, 1.0f, true);
+        audioManager.playMusic("resources/audio/music/arranged/Autonomous.ogg"); // Changed to playMusic
     }
 
     static void debugLog(string msg) {
@@ -805,13 +818,11 @@ class TitleScreen : IScreen {
                 mainMenuButtonsAnimationTimer = 0.0f;
                 mainMenuButtonCurrentX = mainMenuButtonStartX;
             }
-            if (!playerHasSavedName && state == TitleState.MAINMENU && !smallLogoAnimatingIn && !smallLogoAnimatingOut) {
-                // Create a name entry dialog if the player has no saved name
-                state = TitleState.OPTIONS;
-                nameEntryDialog.create();
-                if (nameEntryDialog.hasNameEntry) {
-                    nameEntryDialog.update(dt);
-                }
+            
+            // Show name entry dialog if player doesn't have a saved name
+            if (!data.playerHasSavedName && state == TitleState.MAINMENU && !smallLogoAnimatingIn && !smallLogoAnimatingOut) {
+                state = TitleState.NAME_ENTRY; // Change state to NAME_ENTRY
+                nameEntryDialog.show();     // This will now play the twist_notify sound
             }
         } else if (justExitedMainMenu) {
             if (smallLogoIsShown && !smallLogoAnimatingOut) {
@@ -827,12 +838,12 @@ class TitleScreen : IScreen {
         }
 
         // --- Small Logo Animation Control & Execution ---
-        if ((state == TitleState.MAINMENU || state == TitleState.OPTIONS) && !smallLogoIsShown && !smallLogoAnimatingIn && !smallLogoAnimatingOut) {
+        if ((state == TitleState.MAINMENU || state == TitleState.OPTIONS || state == TitleState.NAME_ENTRY) && !smallLogoIsShown && !smallLogoAnimatingIn && !smallLogoAnimatingOut) {
             smallLogoAnimatingIn = true;
             smallLogoAnimatingOut = false; // Ensure out is false
             smallLogoAnimationTimer = 0.0f;
             smallLogoCurrentY = smallLogoStartY; // Start from off-screen
-        } else if ((state != TitleState.MAINMENU && state != TitleState.OPTIONS) && (smallLogoIsShown || smallLogoAnimatingIn) && !smallLogoAnimatingOut) { // MODIFIED condition
+        } else if ((state != TitleState.MAINMENU && state != TitleState.OPTIONS && state != TitleState.NAME_ENTRY) && (smallLogoIsShown || smallLogoAnimatingIn) && !smallLogoAnimatingOut) { // MODIFIED condition
             smallLogoAnimatingOut = true;
             if (smallLogoAnimatingIn) {
                 smallLogoAnimatingIn = false; // Stop "in" animation if it was active
@@ -864,12 +875,12 @@ class TitleScreen : IScreen {
         }
 
         // --- Main Menu Buttons Animation Control & Execution ---
-        if ((state == TitleState.MAINMENU || state == TitleState.OPTIONS) && !mainMenuButtonsAreShown && !mainMenuButtonsAnimatingIn && !mainMenuButtonsAnimatingOut) {
+        if ((state == TitleState.MAINMENU || state == TitleState.OPTIONS || state == TitleState.NAME_ENTRY) && !mainMenuButtonsAreShown && !mainMenuButtonsAnimatingIn && !mainMenuButtonsAnimatingOut) {
             mainMenuButtonsAnimatingIn = true;
             mainMenuButtonsAnimatingOut = false; // Ensure out is false
             mainMenuButtonsAnimationTimer = 0.0f;
             mainMenuButtonCurrentX = mainMenuButtonStartX; // Start from off-screen
-        } else if ((state != TitleState.MAINMENU && state != TitleState.OPTIONS) && (mainMenuButtonsAreShown || mainMenuButtonsAnimatingIn) && !mainMenuButtonsAnimatingOut) { // MODIFIED condition
+        } else if ((state != TitleState.MAINMENU && state != TitleState.OPTIONS && state != TitleState.NAME_ENTRY) && (mainMenuButtonsAreShown || mainMenuButtonsAnimatingIn) && !mainMenuButtonsAnimatingOut) { // MODIFIED condition
             mainMenuButtonsAnimatingOut = true;
             if (mainMenuButtonsAnimatingIn) {
                 mainMenuButtonsAnimatingIn = false; // Stop "in" animation if it was active
@@ -1193,10 +1204,7 @@ class TitleScreen : IScreen {
                                     buttonFadeOutAlpha = 1.0f;   // Reset alpha for fade-out animation
                                                                     // buttonScale is already pulsing, it will continue from current scale
 
-                                    if (!isMusicPlaying) {
-                                        audioManager.playMusic("resources/audio/music/arranged/Main Theme - Bejeweled 2.ogg");
-                                        isMusicPlaying = true; // Make sure this is set
-                                    }
+                                    audioManager.playMusic("resources/audio/music/arranged/Main Theme - Bejeweled 2.ogg"); // Changed to playMusic
                                 }
                            }
                         }
@@ -1233,6 +1241,10 @@ class TitleScreen : IScreen {
                             mainMenuButtonHoverStates[i] = false;
                         }
                     }
+
+                    if (!playerHasSavedName) {
+                        nameEntryDialog.update(dt); // Update name entry dialog if it exists
+                    }
                     
                     if (currentHoveredButton == -1 && mainMenuLastHoveredButtonIndex != -1) {
                         // Optional: Play mouse off sound if needed, though Bejeweled usually doesn't
@@ -1254,6 +1266,8 @@ class TitleScreen : IScreen {
                                     break;
                                 case 1: // OPTIONS
                                     writeln("OPTIONS clicked");
+                                    state = TitleState.OPTIONS;
+                                    optionsPopup.show();
                                     break;
                                 case 2: // LEADERBOARDS
                                     writeln("LEADERBOARDS clicked");
@@ -1273,7 +1287,34 @@ class TitleScreen : IScreen {
                 }
                 break;
 
-            case TitleState.GAMEMENU: // This was formerly the logic in MAINMENU
+            case TitleState.OPTIONS:
+                // Update options popup
+                optionsPopup.update(dt);
+                
+                // If options popup is no longer active (e.g., back button pressed),
+                // return to main menu
+                if (!optionsPopup.isActive()) {
+                    state = TitleState.MAINMENU;
+                }
+                break;
+                
+            case TitleState.NAME_ENTRY:
+                // Update name entry dialog
+                nameEntryDialog.update(dt);
+                
+                // Check if name entry is confirmed or cancelled
+                if (nameEntryDialog.isNameEntryConfirmed() || nameEntryDialog.isNameEntryCancelled()) {
+                    if (nameEntryDialog.isNameEntryConfirmed() && nameEntryDialog.getPlayerName() != "") {
+                        // Name was entered and confirmed
+                        welcomeText = "Welcome, " ~ data.playerSavedName ~ "!";
+                    }
+                    
+                    state = TitleState.MAINMENU; // Return to main menu
+                    nameEntryDialog.hide();      // Ensure dialog is hidden
+                }
+                break;
+                
+            case TitleState.GAMEMENU:
                 // If menu gadgets are still moving on screen, wait.
                 if (menuGadgetsMovingOn) {
                     // Waiting for menu gadgets animation to complete
@@ -1512,6 +1553,7 @@ class TitleScreen : IScreen {
         // Draw sparkle on top of a random star
         if (sparkleActive && sparkleStarIndex >= 0 && sparkleStarIndex < stars.length && sparkleFrameTextures.length > 0) {
             // Get the selected star position
+
             float sparkleX = stars[sparkleStarIndex].x - 20; // Center sparkle (40x40 pixels)
             float sparkleY = stars[sparkleStarIndex].y - 20;
             
@@ -2072,8 +2114,13 @@ class TitleScreen : IScreen {
         }
 
         // Draw the name entry if it is active
-        if (state == TitleState.OPTIONS && nameEntryDialog.hasNameEntry()) {
-            nameEntryDialog.draw();    
+        if (state == TitleState.NAME_ENTRY && nameEntryDialog.hasNameEntry()) {
+            nameEntryDialog.draw();
+        }
+        
+        // Draw the options popup if it is active
+        if (state == TitleState.OPTIONS && optionsPopup !is null && optionsPopup.isActive()) {
+            optionsPopup.draw();
         }
     }
 
