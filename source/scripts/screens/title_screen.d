@@ -13,6 +13,7 @@ import std.conv : to;
 import std.math;
 import std.string : toStringz;
 import core.stdc.stdint; // For uint8_t
+import std.range;
 
 import data;
 import screens.popups.name_entry;
@@ -797,6 +798,9 @@ class TitleScreen : IScreen {
     }
 
     void update(float dt) {
+        // Update audio manager to handle music fades
+        audioManager.update(dt);
+        
         // Update the texture scale based on the screen size
         // This should be done in the initialize method
 
@@ -1199,12 +1203,20 @@ class TitleScreen : IScreen {
                             if (CheckCollisionPointRec(mousePos, buttonRect)) {
                                 if (!buttonClickedOnce) { // Only process click if not already clicked
                                     buttonClickedOnce = true; // Set flag
-                                    PlaySound(welcomeSound);
+                                    
+                                    // Check if player has a saved name, and play appropriate welcome sound
+                                    if (data.playerHasSavedName && !data.playerSavedName.empty && data.playerSavedName != "Player") {
+                                        PlaySound(welcomeBackSound); // Play "Welcome Back!" when player has a saved name
+                                    } else {
+                                        PlaySound(welcomeSound); // Play "Welcome to Bejeweled 2" for new players
+                                    }
+                                    
                                     titleElementsMovingOff = true; // Start animation for logos and button fade
                                     buttonFadeOutAlpha = 1.0f;   // Reset alpha for fade-out animation
                                                                     // buttonScale is already pulsing, it will continue from current scale
 
-                                    audioManager.playMusic("resources/audio/music/arranged/Main Theme - Bejeweled 2.ogg"); // Changed to playMusic
+                                    // Fade out the title music and transition to main menu music
+                                    audioManager.fadeOutMusic(2.0f, "resources/audio/music/arranged/Main Theme - Bejeweled 2.ogg");
                                 }
                            }
                         }

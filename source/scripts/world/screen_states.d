@@ -22,7 +22,8 @@ enum TitleState {
     MAINMENU,
     GAMEMENU,
     OPTIONS,
-    NAME_ENTRY
+    NAME_ENTRY,
+    QUIT
 }
 
 enum SettingsState {

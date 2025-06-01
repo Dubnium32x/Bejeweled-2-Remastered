@@ -41,4 +41,4 @@ No license has been specified for this project yet.
 
 ---
 
-*This project is a fan remake and is not affiliated with or endorsed by PopCap Games or Electronic Arts.*
+*This project is a fan remake and is not affiliated with or endorsed by PopCap Games or Electronic Arts. It is purely for the love and passion the game has given us over the years.*

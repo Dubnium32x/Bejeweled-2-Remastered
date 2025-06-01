@@ -35,6 +35,16 @@ class AudioManager {
     // Add a variable to track the currently playing music
     private Music currentMusic;
     private bool isMusicPlaying = false;
+    private float currentMusicVolume = 1.0f; // Track current music volume
+    
+    // For music fade effects
+    private bool isFadingOut = false;
+    private float fadeOutDuration = 0.0f;
+    private float fadeOutTimer = 0.0f;
+    private float originalVolume = 1.0f;
+    private string pendingMusicPath = "";
+    private float pendingMusicVolume = -1.0f;
+    private bool pendingMusicLoop = true;
     
     this() {
         audioSettings = AudioSettings.getInstance();
@@ -73,7 +83,7 @@ class AudioManager {
     }
 
     // Optimize music update with buffer management and better error handling
-    void update() {
+    void update(float deltaTime = 0.0f) {
         // Update audio settings if needed
         if (audioSettings.state != AudioSettingsState.INITIALIZED) {
             initialize();
@@ -91,6 +101,29 @@ class AudioManager {
             } catch (Exception e) {
                 writeln("Error updating music stream: ", e.msg);
                 isMusicPlaying = false;
+            }
+        }
+        
+        // Handle music fade out
+        if (isFadingOut && isMusicPlaying && currentMusic.ctxData !is null) {
+            fadeOutTimer += deltaTime;
+            
+            if (fadeOutTimer >= fadeOutDuration) {
+                // Fade complete, stop current music
+                StopMusicStream(currentMusic);
+                isFadingOut = false;
+                
+                // Play pending music if specified
+                if (pendingMusicPath != "") {
+                    playMusic(pendingMusicPath, pendingMusicVolume, pendingMusicLoop);
+                    pendingMusicPath = "";
+                }
+            } else {
+                // Calculate and apply fade volume
+                float fadeRatio = fadeOutTimer / fadeOutDuration;
+                float currentFadeVolume = originalVolume * (1.0f - fadeRatio);
+                SetMusicVolume(currentMusic, currentFadeVolume);
+                currentMusicVolume = currentFadeVolume; // Update the tracked volume
             }
         }
     }
@@ -178,6 +211,7 @@ class AudioManager {
             // Store the current music for later updates
             currentMusic = music;
             isMusicPlaying = true;
+            currentMusicVolume = finalVolume; // Store the current volume
             
             SetMusicVolume(music, finalVolume); // Use calculated finalVolume
             currentMusic.looping = loop; // Set looping before playing for Raylib 5.0+
@@ -306,7 +340,50 @@ class AudioManager {
             if (finalCombinedVolume > 1.0f) finalCombinedVolume = 1.0f;
             
             SetMusicVolume(currentMusic, finalCombinedVolume);
+            currentMusicVolume = finalCombinedVolume; // Update tracked volume
             // writeln("AudioManager: Live updated current music volume to: ", finalCombinedVolume); // Optional: for debugging
         }
+    }
+    
+    /**
+     * Start fading out the current music
+     * 
+     * Params:
+     *   duration = Fade-out duration in seconds
+     *   nextMusicPath = Music to play after fade completes (optional)
+     *   nextMusicVolume = Volume for the next music (optional)
+     *   nextMusicLoop = Whether to loop the next music (optional)
+     */
+    void fadeOutMusic(float duration, string nextMusicPath = "", float nextMusicVolume = -1.0f, bool nextMusicLoop = true) {
+        if (!isMusicPlaying || currentMusic.ctxData is null) {
+            // If no music is playing, just play the next music immediately
+            if (nextMusicPath != "") {
+                playMusic(nextMusicPath, nextMusicVolume, nextMusicLoop);
+            }
+            return;
+        }
+        
+        // Save current volume as the starting point for the fade
+        originalVolume = GetMusicVolume(currentMusic);
+        
+        // Setup fade parameters
+        isFadingOut = true;
+        fadeOutDuration = duration;
+        fadeOutTimer = 0.0f;
+        
+        // Store pending music to play after fade completes
+        pendingMusicPath = nextMusicPath;
+        pendingMusicVolume = nextMusicVolume;
+        pendingMusicLoop = nextMusicLoop;
+    }
+
+    /**
+     * Get the current volume of the playing music
+     * 
+     * Returns: The current volume of the music (0.0 to 1.0)
+     */
+    float GetMusicVolume(Music music) {
+        // We don't need to use the music parameter since we're tracking volume internally
+        return currentMusicVolume;
     }
 }

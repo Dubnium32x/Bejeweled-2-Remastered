@@ -110,9 +110,6 @@ class NameEntry : IScreen {
     Rectangle textBox;
     float cursorBlinkTimer = 0.0f;
 
-    // Public property to check if the dialog is active
-    public bool active() @property { return isActive; }
-
     public this() {
         memoryManager = MemoryManager.instance();
         audioManager = AudioManager.getInstance();
@@ -152,9 +149,16 @@ class NameEntry : IScreen {
     
     // Call this to activate and show the dialog
     public void show() {
-        reset();
+        reset(); // Resets currentInputName to ""
         isActive = true;
         nameEntryState = NameEntryState.ACTIVE;
+
+        // Pre-fill with saved name if available
+        if (data.playerHasSavedName && !data.playerSavedName.empty) {
+            currentInputName = data.playerSavedName;
+        } else {
+            currentInputName = ""; // Ensure it's empty if no valid saved name
+        }
         
         // Explicitly play the "twist_notify.ogg" sound when the dialog is shown.
         if (audioManager !is null) {
@@ -183,7 +187,7 @@ class NameEntry : IScreen {
     void reset() {
         isActive = false;
         nameEntryState = NameEntryState.ACTIVE;
-        currentInputName = "";
+        // currentInputName = ""; // Do not reset here, show() will handle pre-filling or clearing
         playerNameOutput = "";
         
         // Reset animation states
@@ -346,26 +350,10 @@ class NameEntry : IScreen {
 
     void unload() {
         // Unload textures
-        memoryManager.unloadTexture("resources/image/ui/dialog/dialog_box.png");
-        // memoryManager.unloadTexture("resources/image/ui/dialog/dialog_box_alpha.png");
-        // memoryManager.unloadTexture("resources/image/ui/dialog/dialog_button.png");
-        // memoryManager.unloadTexture("resources/image/ui/dialog/dialog_button_alpha.png");
-        // memoryManager.unloadTexture("resources/image/ui/dialog/dialog_button_hover.png
-        // memoryManager.unloadTexture("resources/image/ui/dialog/dialog_button_hover_alpha.png");
-        // memoryManager.unloadTexture("resources/image/ui/dialog/dialog_title.png");
-        // memoryManager.unloadTexture("resources/image/ui/dialog/dialog_title_alpha.png");
-        // memoryManager.unloadTexture("resources/image/ui/dialog/edit_box.png");
-
-        // Unload sounds
-        // audioManager.unloadSound(dialogOpenSound); // Assuming MemoryManager handles sound unloading by path or Sound object
-        // audioManager.unloadSound(dialogCloseSound);
-        // audioManager.unloadSound(dialogButtonHoverSound);
-        // audioManager.unloadSound(dialogButtonClickSound);
-        // audioManager.unloadSound(dialogTypeSound);
-        // For now, assuming MemoryManager handles unloading if sounds were loaded via it.
-        // If AudioManager loads them directly, it should also unload them.
-
+        if (dialogBoxTexture.id != 0) UnloadTexture(dialogBoxTexture);
+        // Unload other textures when they're implemented
+        
+        // Unload sounds when they're implemented
         writeln("NameEntry: Unloaded resources.");
     }
-
 }

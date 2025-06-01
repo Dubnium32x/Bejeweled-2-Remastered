@@ -45,6 +45,10 @@ struct GameOptions {
     bool randomBackdrops;
     int gemStyle; // 1: Classic, 2: Modern, 3: Retro
     int systemMode; // 1: Original, 2: Arranged
+    int musicStyle; // Added: e.g., 1: Original, 2: Remastered
+
+    // player settings
+    string playerName; // Added
 }
 
 class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usage in app.d
@@ -65,6 +69,25 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
     private Rectangle muteToggleRect;
     private Rectangle autoSaveToggleRect;
     private Rectangle randomBackdropsToggleRect;
+
+    // Rectangles for selector arrows
+    private Rectangle resolutionLeftArrowRect;
+    private Rectangle resolutionRightArrowRect;
+    private Rectangle gemStyleLeftArrowRect;
+    private Rectangle gemStyleRightArrowRect;
+    private Rectangle systemModeLeftArrowRect;
+    private Rectangle systemModeRightArrowRect;
+
+    // Supported options lists and current indices
+    // Filtered for 16:9 aspect ratios
+    private string[] supportedResolutions = [
+        "1280x720", 
+        "1600x900", 
+        "1920x1080",
+        "2560x1440" // Added 2560x1440
+        // Add other 16:9 resolutions if needed, e.g., "3840x2160"
+    ];
+    private int currentResolutionIndex = 0;
     
     // Slider-related variables
     private Rectangle masterVolumeSliderRect;
@@ -83,12 +106,64 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
         currentOptions = GameOptions.init; // Corrected: struct initialization
         // Explicitly initialize fields that aren't handled by .init
         currentOptions.hasPendingResolutionChange = false;
-        currentOptions.resolution = "1600x900"; // Default to virtual screen size
-        
+        // currentOptions.resolution is loaded from file, find its index
+        // If not found, default to a common one like 1600x900 or the first in the list
         optionsFilePath = buildPath(getcwd(), "options.ini");
 
-        loadOptionsFromFile();
+        loadOptionsFromFile(); // Load options first to get current resolution
+        initializeResolutionIndex(); // Then initialize index based on loaded/default resolution
         initializeUI();
+    }
+
+    void initializeResolutionIndex() {
+        currentResolutionIndex = 0; // Default to the first 16:9 resolution in the filtered list
+        bool found = false;
+        for (int i = 0; i < supportedResolutions.length; i++) {
+            if (supportedResolutions[i] == currentOptions.resolution) {
+                // Check if the loaded resolution is 16:9
+                string[] parts = currentOptions.resolution.split('x');
+                if (parts.length == 2) {
+                    try {
+                        int w = parts[0].to!int;
+                        int h = parts[1].to!int;
+                        if (w * 9 == h * 16) { // Check for 16:9 aspect ratio
+                            currentResolutionIndex = i;
+                            found = true;
+                            break;
+                        }
+                    } catch (Exception e) {
+                        writeln("Error parsing resolution for aspect ratio check: ", currentOptions.resolution);
+                    }
+                }
+            }
+        }
+
+        // If the loaded resolution wasn't found in the 16:9 list or wasn't 16:9,
+        // default to the first supported 16:9 resolution.
+        if (!found) {
+            if (supportedResolutions.length > 0) {
+                currentOptions.resolution = supportedResolutions[0]; // Default to the first 16:9 option
+                currentResolutionIndex = 0;
+                currentOptions.hasPendingResolutionChange = true; // Mark for change if it wasn't 16:9
+                writeln("Current resolution is not 16:9 or not supported. Defaulting to ", currentOptions.resolution);
+            } else {
+                // This case should ideally not happen if supportedResolutions is correctly populated.
+                // Fallback to a common 16:9 resolution if the list is somehow empty.
+                currentOptions.resolution = "1280x720"; 
+                currentResolutionIndex = 0; // Assuming 1280x720 would be in a non-empty list
+                currentOptions.hasPendingResolutionChange = true;
+                writeln("Supported resolutions list is empty. Defaulting to 1280x720.");
+            }
+        }
+        // Ensure currentOptions.resolution is valid if it wasn't found or was empty
+        // This part might be redundant now due to the logic above but kept for safety.
+        else if (currentOptions.resolution.empty || (currentResolutionIndex == 0 && supportedResolutions.length > 0 && supportedResolutions[0] != currentOptions.resolution)) {
+             if (supportedResolutions.length > 0) {
+                currentOptions.resolution = supportedResolutions[currentResolutionIndex]; // Ensure it's set from the list
+             } else {
+                currentOptions.resolution = "1280x720"; // Fallback if list is empty
+             }
+        }
     }
 
     void initializeUI() {
@@ -302,18 +377,36 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
 
         switch (optionCategories[selectedCategoryIndex]) {
             case "Video":
-                fullscreenToggleRect = Rectangle(optionsContentX + optionsContentWidth / 2, yPos, 100, 24);
+                // Fullscreen Toggle
+                // The fullscreenToggleRect is defined in drawCurrentCategoryOptionsLayout and used here.
+                // Its yPos is initialYPos.
                 if (CheckCollisionPointRec(mousePos, fullscreenToggleRect)) {
                     currentOptions.fullscreen = !currentOptions.fullscreen;
                     currentOptions.hasPendingResolutionChange = true;
-                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX); // Changed sound
+                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX);
                 }
-                yPos += 40;
-                vsyncToggleRect = Rectangle(optionsContentX + optionsContentWidth / 2, yPos, 100, 24);
-                 if (CheckCollisionPointRec(mousePos, vsyncToggleRect)) {
+                // yPos for vsync is initialYPos + 40
+                // The vsyncToggleRect is defined in drawCurrentCategoryOptionsLayout and used here.
+                if (CheckCollisionPointRec(mousePos, vsyncToggleRect)) {
                     currentOptions.vsync = !currentOptions.vsync;
                     applyVideoSettings(true); // Apply VSync immediately
-                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX); // Changed sound
+                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX);
+                }
+                
+                // Resolution Arrows
+                // The resolutionLeftArrowRect and resolutionRightArrowRect are defined in drawCurrentCategoryOptionsLayout.
+                // Their yPos is initialYPos + 40 + 40.
+                if (CheckCollisionPointRec(mousePos, resolutionLeftArrowRect)) {
+                    currentResolutionIndex = (currentResolutionIndex - 1 + cast(int)supportedResolutions.length) % cast(int)supportedResolutions.length;
+                    currentOptions.resolution = supportedResolutions[currentResolutionIndex];
+                    currentOptions.hasPendingResolutionChange = true;
+                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX);
+                }
+                if (CheckCollisionPointRec(mousePos, resolutionRightArrowRect)) {
+                    currentResolutionIndex = (currentResolutionIndex + 1) % cast(int)supportedResolutions.length;
+                    currentOptions.resolution = supportedResolutions[currentResolutionIndex];
+                    currentOptions.hasPendingResolutionChange = true;
+                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX);
                 }
                 break;
             case "Audio":
@@ -360,18 +453,48 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
                 }
                 break;
             case "Gameplay":
-                autoSaveToggleRect = Rectangle(interactableXPos, yPos, 100, 24);
-                 if (CheckCollisionPointRec(mousePos, autoSaveToggleRect)) {
+                // Auto Save Toggle
+                // The autoSaveToggleRect is defined in drawCurrentCategoryOptionsLayout. Its yPos is initialYPos.
+                if (CheckCollisionPointRec(mousePos, autoSaveToggleRect)) {
                     currentOptions.autoSave = !currentOptions.autoSave;
-                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX); // Changed sound
+                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX);
                 }
-                yPos += 40;
-                randomBackdropsToggleRect = Rectangle(interactableXPos, yPos, 100, 24);
+                // Random Backdrops Toggle
+                // The randomBackdropsToggleRect is defined in drawCurrentCategoryOptionsLayout. Its yPos is initialYPos + 40.
                 if (CheckCollisionPointRec(mousePos, randomBackdropsToggleRect)) {
                     currentOptions.randomBackdrops = !currentOptions.randomBackdrops;
-                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX); // Changed sound
+                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX);
                 }
-                // Gem Style and System Mode would need more complex UI (dropdown/selector)
+
+                // Gem Style Arrows
+                // The gemStyleLeftArrowRect and gemStyleRightArrowRect are defined in drawCurrentCategoryOptionsLayout.
+                // Their yPos is initialYPos + 40 + 40.
+                if (CheckCollisionPointRec(mousePos, gemStyleLeftArrowRect)) {
+                    currentOptions.gemStyle = (currentOptions.gemStyle - 1);
+                    if (currentOptions.gemStyle < 1) currentOptions.gemStyle = 3; // Cycle from 1 to 3
+                    applyGameplaySettings();
+                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX);
+                }
+                if (CheckCollisionPointRec(mousePos, gemStyleRightArrowRect)) {
+                    currentOptions.gemStyle = (currentOptions.gemStyle + 1);
+                    if (currentOptions.gemStyle > 3) currentOptions.gemStyle = 1; // Cycle from 1 to 3
+                    applyGameplaySettings();
+                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX);
+                }
+
+                // System Mode Arrows
+                // The systemModeLeftArrowRect and systemModeRightArrowRect are defined in drawCurrentCategoryOptionsLayout.
+                // Their yPos is initialYPos + 40 + 40 + 40.
+                if (CheckCollisionPointRec(mousePos, systemModeLeftArrowRect)) {
+                    currentOptions.systemMode = (currentOptions.systemMode == 1) ? 2 : 1; // Toggle between 1 and 2
+                    applyGameplaySettings();
+                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX);
+                }
+                if (CheckCollisionPointRec(mousePos, systemModeRightArrowRect)) {
+                    currentOptions.systemMode = (currentOptions.systemMode == 1) ? 2 : 1; // Toggle between 1 and 2
+                    applyGameplaySettings();
+                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX);
+                }
                 break;
             case "Controls":
                 // Placeholder for control settings
@@ -431,6 +554,22 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
         float interactableXPos = x + width / 2; // X position for toggles/sliders
         float valueXPos = x + width - 150; // X for displaying current value text
 
+        // Define arrow button properties
+        float arrowButtonWidth = 30;
+        float arrowButtonHeight = 24;
+        float arrowSpacing = 5;
+        // Calculate X positions for arrows around the displayed value text
+        // The value text is drawn starting at interactableXPos or a similar centered position.
+        // Let's assume the value text itself is about 100-150px wide for centering arrows.
+        float valueTextDisplayWidth = 150; // Estimated width for the resolution/style text
+        float leftArrowX = interactableXPos - (valueTextDisplayWidth / 2) - arrowButtonWidth - arrowSpacing;
+        float rightArrowX = interactableXPos + (valueTextDisplayWidth / 2) + arrowSpacing;
+        // A simpler approach for arrows: place them directly to the left/right of the interactableXPos (center of the option value)
+        // This might be better if the value text width varies a lot.
+        float simplerLeftArrowX = interactableXPos - arrowButtonWidth - arrowSpacing - 50; // Nudge left of center
+        float simplerRightArrowX = interactableXPos + arrowSpacing + 50; // Nudge right of center
+
+
         switch (optionCategories[selectedCategoryIndex]) {
             case "Video":
                 DrawTextEx(app.fontFamily[1], "Fullscreen:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
@@ -446,11 +585,18 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
                 yPos += 40;
                 
                 DrawTextEx(app.fontFamily[1], "Resolution:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
-                // Placeholder for resolution selector
-                DrawTextEx(app.fontFamily[2], currentOptions.resolution.toStringz(), Vector2(interactableXPos, yPos +2), 24, 1, Colors.YELLOW);
+                // Arrow positions for resolution
+                float resValueTextX = interactableXPos - (MeasureTextEx(app.fontFamily[2], supportedResolutions[currentResolutionIndex].toStringz(), 24, 1).x / 2); // Center the text
+                resolutionLeftArrowRect = Rectangle(resValueTextX - arrowButtonWidth - arrowSpacing, yPos, arrowButtonWidth, arrowButtonHeight);
+                resolutionRightArrowRect = Rectangle(resValueTextX + MeasureTextEx(app.fontFamily[2], supportedResolutions[currentResolutionIndex].toStringz(), 24, 1).x + arrowSpacing, yPos, arrowButtonWidth, arrowButtonHeight);
+
+                DrawRectangleRec(resolutionLeftArrowRect, Colors.DARKGRAY);
+                DrawTextEx(app.fontFamily[2], "<".toStringz(), Vector2(resolutionLeftArrowRect.x + 10, resolutionLeftArrowRect.y + 2), 24, 1, Colors.WHITE);
+                DrawTextEx(app.fontFamily[2], supportedResolutions[currentResolutionIndex].toStringz(), Vector2(resValueTextX, yPos +2), 24, 1, Colors.YELLOW);
+                DrawRectangleRec(resolutionRightArrowRect, Colors.DARKGRAY);
+                DrawTextEx(app.fontFamily[2], ">".toStringz(), Vector2(resolutionRightArrowRect.x + 10, resolutionRightArrowRect.y + 2), 24, 1, Colors.WHITE);
                 yPos += 40;
                 
-                // Add a note about resolution changes
                 if (currentOptions.hasPendingResolutionChange) {
                     DrawTextEx(app.fontFamily[2], "* Display changes will apply on game restart".toStringz(), 
                                Vector2(labelXPos, yPos + 2), 18, 1, Colors.ORANGE);
@@ -562,21 +708,37 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
                 yPos += 40;
 
                 DrawTextEx(app.fontFamily[1], "Gem Style:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
-                // Placeholder for gem style selector
                 string gemStyleStr;
                 switch(currentOptions.gemStyle) {
                     case 1: gemStyleStr = "Classic"; break;
                     case 2: gemStyleStr = "Modern"; break;
                     case 3: gemStyleStr = "Retro"; break;
-                    default: gemStyleStr = "Unknown"; break;
+                    default: gemStyleStr = "Unknown"; currentOptions.gemStyle = 1; break; // Default to 1 if invalid
                 }
-                DrawTextEx(app.fontFamily[2], gemStyleStr.toStringz(), Vector2(interactableXPos, yPos + 2), 24, 1, Colors.YELLOW);
+                float gemStyleTextX = interactableXPos - (MeasureTextEx(app.fontFamily[2], gemStyleStr.toStringz(), 24, 1).x / 2); // Center the text
+                gemStyleLeftArrowRect = Rectangle(gemStyleTextX - arrowButtonWidth - arrowSpacing, yPos, arrowButtonWidth, arrowButtonHeight);
+                gemStyleRightArrowRect = Rectangle(gemStyleTextX + MeasureTextEx(app.fontFamily[2], gemStyleStr.toStringz(), 24, 1).x + arrowSpacing, yPos, arrowButtonWidth, arrowButtonHeight);
+                
+                DrawRectangleRec(gemStyleLeftArrowRect, Colors.DARKGRAY);
+                DrawTextEx(app.fontFamily[2], "<".toStringz(), Vector2(gemStyleLeftArrowRect.x + 10, gemStyleLeftArrowRect.y + 2), 24, 1, Colors.WHITE);
+                DrawTextEx(app.fontFamily[2], gemStyleStr.toStringz(), Vector2(gemStyleTextX, yPos + 2), 24, 1, Colors.YELLOW);
+                DrawRectangleRec(gemStyleRightArrowRect, Colors.DARKGRAY);
+                DrawTextEx(app.fontFamily[2], ">".toStringz(), Vector2(gemStyleRightArrowRect.x + 10, gemStyleRightArrowRect.y + 2), 24, 1, Colors.WHITE);
                 yPos += 40;
 
                 DrawTextEx(app.fontFamily[1], "System Mode:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
-                // Placeholder for system mode selector
                 string systemModeStr = (currentOptions.systemMode == 1) ? "Original" : "Arranged";
-                DrawTextEx(app.fontFamily[2], systemModeStr.toStringz(), Vector2(interactableXPos, yPos + 2), 24, 1, Colors.YELLOW);
+                if (currentOptions.systemMode != 1 && currentOptions.systemMode != 2) currentOptions.systemMode = 1; // Default to 1 if invalid
+
+                float systemModeTextX = interactableXPos - (MeasureTextEx(app.fontFamily[2], systemModeStr.toStringz(), 24, 1).x / 2); // Center the text
+                systemModeLeftArrowRect = Rectangle(systemModeTextX - arrowButtonWidth - arrowSpacing, yPos, arrowButtonWidth, arrowButtonHeight);
+                systemModeRightArrowRect = Rectangle(systemModeTextX + MeasureTextEx(app.fontFamily[2], systemModeStr.toStringz(), 24, 1).x + arrowSpacing, yPos, arrowButtonWidth, arrowButtonHeight);
+
+                DrawRectangleRec(systemModeLeftArrowRect, Colors.DARKGRAY);
+                DrawTextEx(app.fontFamily[2], "<".toStringz(), Vector2(systemModeLeftArrowRect.x + 10, systemModeLeftArrowRect.y + 2), 24, 1, Colors.WHITE);
+                DrawTextEx(app.fontFamily[2], systemModeStr.toStringz(), Vector2(systemModeTextX, yPos + 2), 24, 1, Colors.YELLOW);
+                DrawRectangleRec(systemModeRightArrowRect, Colors.DARKGRAY);
+                DrawTextEx(app.fontFamily[2], ">".toStringz(), Vector2(systemModeRightArrowRect.x + 10, systemModeRightArrowRect.y + 2), 24, 1, Colors.WHITE);
                 break;
             case "Controls":
                 DrawTextEx(app.fontFamily[1], "Controls configuration coming soon...".toStringz(), Vector2(labelXPos, yPos + 2), 22, 1, Colors.LIGHTGRAY);
@@ -648,7 +810,7 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
             writeln("Options file not found, creating with defaults: ", optionsFilePath);
             // Set explicit defaults before saving, as GameOptions.init might be all zeros/false/null
             currentOptions.fullscreen = false;
-            currentOptions.resolution = "1600x900"; // Default to virtual screen size
+            currentOptions.resolution = "1600x900"; // Default to a 16:9 resolution
             currentOptions.vsync = true;
             currentOptions.brightness = 1.0f;
             currentOptions.contrast = 1.0f;
@@ -661,7 +823,14 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
             currentOptions.randomBackdrops = true;
             currentOptions.gemStyle = 1; // Classic
             currentOptions.systemMode = 1; // Original
+            currentOptions.musicStyle = 1; // Default music style (e.g., Original)
+            currentOptions.playerName = "Player"; // Default player name
             currentOptions.hasPendingResolutionChange = false; // Initialize the flag
+            
+            // Update data module with default player name
+            data.playerSavedName = currentOptions.playerName;
+            data.playerHasSavedName = false; // No custom name saved yet
+
             saveOptionsToFile(); // Create it with defaults
             return;
         }
@@ -673,6 +842,23 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
             auto videoSection = parseIniSection(lines, "VideoSettings"); // Updated section name
             currentOptions.fullscreen = getIniValue(videoSection, "fullscreen", "false").to!bool;
             currentOptions.resolution = getIniValue(videoSection, "resolution", "1600x900");
+            // After loading, re-check and enforce 16:9 if necessary
+            string[] parts = currentOptions.resolution.split('x');
+            bool is16by9 = false;
+            if (parts.length == 2) {
+                try {
+                    int w = parts[0].to!int;
+                    int h = parts[1].to!int;
+                    if (w * 9 == h * 16) {
+                        is16by9 = true;
+                    }
+                } catch (Exception e) { /* ignore parsing error */ }
+            }
+            if (!is16by9) {
+                writeln("Loaded resolution '", currentOptions.resolution, "' is not 16:9. Resetting to default 16:9.");
+                currentOptions.resolution = "1600x900"; // Default 16:9
+                // No need to set hasPendingResolutionChange here, initializeResolutionIndex will handle it
+            }
             currentOptions.vsync = getIniValue(videoSection, "vsync", "true").to!bool;
 
             // Display settings are placeholders for now
@@ -694,6 +880,20 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
             currentOptions.randomBackdrops = getIniValue(gameplaySection, "random_backdrops", "true").to!bool;
             currentOptions.gemStyle = getIniValue(gameplaySection, "gem_style", "1").to!int;
             currentOptions.systemMode = getIniValue(gameplaySection, "system_mode", "1").to!int;
+            currentOptions.musicStyle = getIniValue(gameplaySection, "music_style", "1").to!int; // Load musicStyle
+
+            auto playerSection = parseIniSection(lines, "PlayerSettings"); // New section for player name
+            currentOptions.playerName = getIniValue(playerSection, "player_name", "Player"); // Load playerName
+            
+            // Update data module based on loaded player name
+            data.playerSavedName = currentOptions.playerName;
+            if (!currentOptions.playerName.empty && currentOptions.playerName != "Player") {
+                data.playerHasSavedName = true;
+            } else {
+                data.playerHasSavedName = false;
+                // Ensure data.playerSavedName is "Player" if loaded name is empty or "Player"
+                data.playerSavedName = "Player"; 
+            }
             
             // writeln("Loaded options: ", currentOptions.to!string); // .to!string for struct might need custom impl or use std.json
             printCurrentOptions();
@@ -703,10 +903,17 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
             writeln("Error loading options: ", e.msg);
             // Fallback to defaults if loading fails
             currentOptions = GameOptions.init; // Re-init to defaults
-            currentOptions.resolution = "1600x900";
+            currentOptions.resolution = "1600x900"; // Default to a 16:9 resolution
             currentOptions.masterVolume = 80;
             currentOptions.musicVolume = 70;
             currentOptions.sfxVolume = 75;
+            currentOptions.musicStyle = 1; // Default music style
+            currentOptions.playerName = "Player"; // Default player name
+            
+            // Update data module with default player name on error
+            data.playerSavedName = currentOptions.playerName;
+            data.playerHasSavedName = false;
+
             currentOptions.hasPendingResolutionChange = false; // Ensure this is set to false when error occurs
         }
     }
@@ -735,6 +942,16 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
         lines ~= "random_backdrops=" ~ currentOptions.randomBackdrops.to!string;
         lines ~= "gem_style=" ~ currentOptions.gemStyle.to!string;
         lines ~= "system_mode=" ~ currentOptions.systemMode.to!string;
+        lines ~= "music_style=" ~ currentOptions.musicStyle.to!string; // Save musicStyle
+        lines ~= "";
+        lines ~= "[PlayerSettings]"; // New section for player name
+        // Update currentOptions.playerName from data module right before saving
+        if (data.playerHasSavedName && !data.playerSavedName.empty && data.playerSavedName != "Player") {
+            currentOptions.playerName = data.playerSavedName;
+        } else {
+            currentOptions.playerName = "Player"; // Default if no custom name is set
+        }
+        lines ~= "player_name=" ~ currentOptions.playerName; // Save playerName
         lines ~= "";
         lines ~= "[ControlsSettings]"; // Added for completeness
         lines ~= "# Control settings here";
@@ -821,12 +1038,21 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
         // These would typically call functions in your 'data' module or similar game logic controllers
         // data.setAutoSave(currentOptions.autoSave); // Example, if data.d had this
         // data.setRandomBackdrops(currentOptions.randomBackdrops);
-        // data.setGemStyle(currentOptions.gemStyle);
-        // data.setSystemMode(currentOptions.systemMode);
+        
+        // Apply Gem Style - Assuming a similar mechanism to System Mode or a direct setting
+        // Example: data.setGemStyle(currentOptions.gemStyle); 
+        
+        // Apply Music Style - This would likely influence AudioManager or how music tracks are selected
+        // Example: audioManager.setMusicStyle(currentOptions.musicStyle);
+
         if (currentOptions.systemMode == 1) data.setCurrentGameMode(GameMode.ORIGINAL);
         else if (currentOptions.systemMode == 2) data.setCurrentGameMode(GameMode.ARRANGED);
 
-        writeln("Gameplay settings applied (simulated): AutoSave=", currentOptions.autoSave, ", GemStyle=", currentOptions.gemStyle);
+        writeln("Gameplay settings applied: AutoSave=", currentOptions.autoSave, 
+                ", RandomBackdrops=", currentOptions.randomBackdrops, 
+                ", GemStyle=", currentOptions.gemStyle, 
+                ", SystemMode=", currentOptions.systemMode,
+                ", MusicStyle=", currentOptions.musicStyle); // Added MusicStyle to log
     }
 
     // Call this method to apply all settings, e.g., when closing the options screen
@@ -853,5 +1079,7 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
         writeln("  Random Backdrops: ", currentOptions.randomBackdrops);
         writeln("  Gem Style: ", currentOptions.gemStyle);
         writeln("  System Mode: ", currentOptions.systemMode);
+        writeln("  Music Style: ", currentOptions.musicStyle); // Added Music Style
+        writeln("  Player Name: ", currentOptions.playerName); // Added Player Name
     }
 }
