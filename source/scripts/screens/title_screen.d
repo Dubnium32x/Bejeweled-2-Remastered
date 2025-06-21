@@ -583,7 +583,7 @@ class TitleScreen : IScreen {
         mainMenuMouseClickSound = LoadSound("resources/audio/sfx/mainmenu_mouseclick.ogg");
         mainMenuMouseOffSound = LoadSound("resources/audio/sfx/mainmenu_mouseoff.ogg");
         click2Sound = LoadSound("resources/audio/sfx/click2.ogg");
-        mainMenuGameStartSound = LoadSound("resources/audio/sfx/secret.ogg");
+        mainMenuGameStartSound = LoadSound("resources/audio/sfx/mainmenu_gamestart.ogg"); // Changed from secret.ogg
 
         // Initialize copyright text
         copyrightText = "BEJEWELED 2 - 2004 POPCAP GAMES, INC. ALL RIGHTS RESERVED.";
@@ -1069,7 +1069,9 @@ class TitleScreen : IScreen {
             smallLogoAnimationTimer += dt;
             float progress = Clamp(smallLogoAnimationTimer / smallLogoAnimationDuration, 0.0f, 1.0f);
             float easedProgress = 1.0f - pow(1.0f - progress, 3.0f); // EaseOutCubic
-            smallLogoCurrentY = smallLogoTargetY + (smallLogoStartY - smallLogoTargetY) * easedProgress;
+            // Move the small logo further up when animating out (e.g., off the top of the screen)
+            float extraOffset = (logoTexture.height * smallLogoScale) + 20.0f; // Move it fully off + 40px buffer
+            smallLogoCurrentY = smallLogoTargetY - (smallLogoTargetY - (smallLogoStartY - extraOffset)) * easedProgress;
 
             if (progress >= 1.0f) {
                 smallLogoAnimatingOut = false;
@@ -1515,7 +1517,7 @@ class TitleScreen : IScreen {
                                                                     // buttonScale is already pulsing, it will continue from current scale
 
                                     // Fade out the title music and transition to main menu music
-                                    audioManager.fadeOutMusicWithStyle(2.0f, "Main Theme - Bejeweled 2.ogg");
+                                    audioManager.fadeOutMusicWithStyle(5.0f, "Main Theme - Bejeweled 2.ogg");
                                 }
                            }
                         }
@@ -1930,29 +1932,52 @@ class TitleScreen : IScreen {
                     // Handle button clicks
                     if (IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT)) {
                         if (classicButtonHovered) {
-                            // Play click sound when button is clicked
-                            PlaySound(mainMenuGameStartSound);
-                            // Start Classic game mode
-                            // state = TitleState.CLASSIC_GAME; // Will need to be implemented 
-                            writeln("Classic mode selected");
+                            // Save the selected mode and start wormhole transition to game screen
+                            // The TransitionManager will handle sound effects automatically
+                            data.setMostRecentGameMode(0); // Classic = 0
+                            writeln("Classic mode selected - starting wormhole transition");
+                            
+                            // Start wormhole transition to game screen
+                            import world.screen_manager;
+                            import world.transition_manager;
+                            auto screenManager = ScreenManager.getInstance();
+                            screenManager.transitionToState(ScreenState.GAMEPLAY, TransitionType.WORMHOLE, 2.0f);
                         }
                         else if (actionButtonHovered) {
-                            PlaySound(mainMenuGameStartSound);
-                            // Start Action game mode
-                            // state = TitleState.ACTION_GAME; // Will need to be implemented
-                            writeln("Action mode selected");
+                            // Save the selected mode and start wormhole transition to game screen
+                            // The TransitionManager will handle sound effects automatically
+                            data.setMostRecentGameMode(1); // Action = 1
+                            writeln("Action mode selected - starting wormhole transition");
+                            
+                            // Start wormhole transition to game screen
+                            import world.screen_manager;
+                            import world.transition_manager;
+                            auto screenManager = ScreenManager.getInstance();
+                            screenManager.transitionToState(ScreenState.GAMEPLAY, TransitionType.WORMHOLE, 2.0f);
                         }
                         else if (endlessButtonHovered) {
-                            PlaySound(mainMenuGameStartSound);
-                            // Start Endless game mode
-                            // state = TitleState.ENDLESS_GAME; // Will need to be implemented
-                            writeln("Endless mode selected");
+                            // Save the selected mode and start wormhole transition to game screen
+                            // The TransitionManager will handle sound effects automatically
+                            data.setMostRecentGameMode(2); // Endless = 2
+                            writeln("Endless mode selected - starting wormhole transition");
+                            
+                            // Start wormhole transition to game screen
+                            import world.screen_manager;
+                            import world.transition_manager;
+                            auto screenManager = ScreenManager.getInstance();
+                            screenManager.transitionToState(ScreenState.GAMEPLAY, TransitionType.WORMHOLE, 2.0f);
                         }
                         else if (puzzleButtonHovered) {
-                            PlaySound(mainMenuGameStartSound);
-                            // Start Puzzle game mode
-                            // state = TitleState.PUZZLE_GAME; // Will need to be implemented
-                            writeln("Puzzle mode selected");
+                            // Save the selected mode and start wormhole transition to game screen
+                            // The TransitionManager will handle sound effects automatically
+                            data.setMostRecentGameMode(3); // Puzzle = 3
+                            writeln("Puzzle mode selected - starting wormhole transition");
+                            
+                            // Start wormhole transition to game screen
+                            import world.screen_manager;
+                            import world.transition_manager;
+                            auto screenManager = ScreenManager.getInstance();
+                            screenManager.transitionToState(ScreenState.GAMEPLAY, TransitionType.WORMHOLE, 2.0f);
                         }
                         else if (toggleModesButtonHovered) {
                             PlaySound(mainMenuMouseClickSound);

@@ -8,6 +8,7 @@ import std.algorithm;
 import std.conv : to;
 import std.file;
 import std.math;
+import std.string : toStringz;
 
 import data;
 import world.screen_manager;
@@ -141,5 +142,103 @@ import world.audio_manager;
 */
 
 // ---- LOCAL VARIABLES ----
+private GameScreen _instance;
+
+// ---- GAME SCREEN CLASS ----
+class GameScreen : IScreen {
+    private static GameScreen _instance;
+    
+    // Game state
+    private bool isInitialized = false;
+    
+    // Fonts will be filtered for quality
+    private bool fontsFiltered = false;
+    
+    // Static singleton access
+    static GameScreen getInstance() {
+        if (_instance is null) {
+            _instance = new GameScreen();
+        }
+        return _instance;
+    }
+    
+    private this() {
+        // Private constructor for singleton
+    }
+    
+    void initialize() {
+        if (isInitialized) return;
+        
+        // Apply font filtering for consistent quality across all screens
+        if (!fontsFiltered) {
+            import app : fontFamily;
+            foreach (font; fontFamily) {
+                if (font.texture.id > 0) {
+                    SetTextureFilter(font.texture, TextureFilter.TEXTURE_FILTER_BILINEAR);
+                }
+            }
+            fontsFiltered = true;
+            writeln("GameScreen: Applied bilinear filtering to fonts");
+        }
+        
+        isInitialized = true;
+        writeln("GameScreen initialized");
+    }
+    
+    void update(float deltaTime) {
+        // Handle input to return to title screen for now
+        if (IsKeyPressed(KeyboardKey.KEY_ESCAPE)) {
+            import world.screen_manager;
+            import world.transition_manager;
+            auto screenManager = ScreenManager.getInstance();
+            writeln("GameScreen: ESC pressed, transitioning back to title screen with wormhole effect");
+            screenManager.transitionToState(ScreenState.TITLE, TransitionType.WORMHOLE, 1.5f);
+        }
+    }
+    
+    void draw() {
+        import app : VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT, fontFamily;
+        
+        // Clear background with a dark game-like color
+        ClearBackground(Color(20, 20, 40, 255));
+        
+        // Draw placeholder game screen content
+        DrawTextEx(fontFamily[0], "GAME SCREEN".toStringz(), 
+                  Vector2(VIRTUAL_SCREEN_WIDTH / 2 - 120, 100), 32, 1, Colors.WHITE);
+        
+        // Show which mode was selected
+        import data;
+        int selectedMode = data.getMostRecentGameMode();
+        string modeText = "";
+        switch (selectedMode) {
+            case 0: modeText = "CLASSIC MODE"; break;
+            case 1: modeText = "ACTION MODE"; break;
+            case 2: modeText = "ENDLESS MODE"; break;
+            case 3: modeText = "PUZZLE MODE"; break;
+            default: modeText = "UNKNOWN MODE"; break;
+        }
+        
+        DrawTextEx(fontFamily[1], modeText.toStringz(),
+                  Vector2(VIRTUAL_SCREEN_WIDTH / 2 - MeasureTextEx(fontFamily[1], modeText.toStringz(), 28, 1).x / 2, 200), 
+                  28, 1, Colors.YELLOW);
+        
+        // Instructions
+        DrawTextEx(fontFamily[2], "Game will be implemented here...".toStringz(),
+                  Vector2(VIRTUAL_SCREEN_WIDTH / 2 - 200, 300), 20, 1, Colors.LIGHTGRAY);
+        
+        DrawTextEx(fontFamily[2], "Press ESC to return to title screen".toStringz(),
+                  Vector2(VIRTUAL_SCREEN_WIDTH / 2 - 180, 400), 18, 1, Colors.RAYWHITE);
+        
+        // Show wormhole transition working message
+        DrawTextEx(fontFamily[2], "Wormhole transition system is working!".toStringz(),
+                  Vector2(VIRTUAL_SCREEN_WIDTH / 2 - 200, 500), 18, 1, Colors.LIME);
+    }
+    
+    void unload() {
+        isInitialized = false;
+        fontsFiltered = false;
+        writeln("GameScreen unloaded");
+    }
+}
 
 

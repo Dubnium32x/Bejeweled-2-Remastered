@@ -15,8 +15,10 @@ import world.screen_manager;
 import world.audio_manager;
 import world.memory_manager;
 import world.screen_states;
+import world.transition_manager;
 import screens.init_screen;
 import screens.title_screen; // Import the new title screen
+import screens.game_screen; // Import the game screen
 
 // ---- LOAD RESOURCES ----
 Font continuumBold;
@@ -30,8 +32,9 @@ __gshared Font[] fontFamily;
 __gshared OptionsScreen optionsScreen; // __gshared if other modules need direct access, otherwise private
 
 // Virtual screen setup
-private const int VIRTUAL_SCREEN_WIDTH = 1600;
-private const int VIRTUAL_SCREEN_HEIGHT = 900;
+// Screen dimensions - made public for use in other modules
+public const int VIRTUAL_SCREEN_WIDTH = 1600;
+public const int VIRTUAL_SCREEN_HEIGHT = 900;
 private __gshared RenderTexture2D virtualScreen; // __gshared if other modules need direct access, otherwise private
 
 
@@ -95,10 +98,15 @@ void main() {
     auto screenManager = ScreenManager.getInstance();
     screenManager.initialize();
     
+    // Initialize transition manager
+    auto transitionManager = TransitionManager.getInstance();
+    writeln("TransitionManager initialized for screen transitions");
+    
     // Register screens
     screenManager.registerScreen(ScreenState.INIT, InitScreen.getInstance());
     screenManager.registerScreen(ScreenState.TITLE, TitleScreen.getInstance()); // Register TitleScreen
-    // TODO: Register other screens (Gameplay, Options, Highscores, etc.)
+    screenManager.registerScreen(ScreenState.GAMEPLAY, GameScreen.getInstance()); // Register GameScreen
+    // TODO: Register other screens (Options, Highscores, etc.)
     
     // Set the initial screen state using the appropriate method
     screenManager.changeState(ScreenState.INIT);
@@ -139,8 +147,15 @@ void main() {
         }
         
         // --- UPDATE GAME LOGIC ---
-        audioManager.update();
-        screenManager.update(GetFrameTime());
+        audioManager.update(GetFrameTime());
+        
+        // Update transition manager first (reuse existing variable)
+        transitionManager.update(GetFrameTime());
+        
+        // Only update screen manager if not transitioning (to prevent input during transitions)
+        if (!transitionManager.isTransitioning()) {
+            screenManager.update(GetFrameTime());
+        }
 
         // --- DRAW GAME TO VIRTUAL SCREEN ---
         BeginTextureMode(virtualScreen);
@@ -149,7 +164,12 @@ void main() {
             
             // The active screen (e.g., TitleScreen) is responsible for 
             // drawing its own background and elements onto this now-cleared virtual screen.
-            screenManager.draw(); 
+            // Use transition manager for drawing if a transition is active (reuse existing variable)
+            if (transitionManager.isTransitioning()) {
+                transitionManager.draw();
+            } else {
+                screenManager.draw(); 
+            } 
             
             EndBlendMode();
         EndTextureMode();
@@ -183,6 +203,8 @@ void main() {
     }
 
     // De-Initialization
+    transitionManager.unload();  // Reuse existing variable
+    
     UnloadRenderTexture(virtualScreen); // Unload the render texture
     // Unload fonts
     // ... existing deinitialization ...

@@ -11,6 +11,7 @@ import std.traits : EnumMembers;
 
 import world.screen_states;
 import world.screen_settings;
+import world.transition_manager : TransitionType;
 
 // ---- SCREEN INTERFACE ----
 interface IScreen {
@@ -148,6 +149,21 @@ class ScreenManager : IScreen {
     // Check if a specific state is active
     bool isState(ScreenState state) {
         return _currentState == state;
+    }
+    
+    // Transition to a new state with animated effect
+    void transitionToState(ScreenState newState, TransitionType transitionType = TransitionType.WORMHOLE, float duration = 1.0f) {
+        import world.transition_manager;
+        
+        auto transitionManager = TransitionManager.getInstance();
+        
+        // Only start transition if not already transitioning
+        if (!transitionManager.isTransitioning()) {
+            transitionManager.startTransition(_currentState, newState, transitionType, duration);
+        } else {
+            writeln("ScreenManager: Transition already in progress, falling back to immediate change");
+            changeState(newState);
+        }
     }
 }
 

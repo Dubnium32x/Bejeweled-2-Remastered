@@ -48,6 +48,9 @@ class AudioManager {
     private string pendingMusicPath = "";
     private float pendingMusicVolume = -1.0f;
     private bool pendingMusicLoop = true;
+    private float pendingMusicDelay = 0.0f; // Delay before starting pending music
+    private float pendingMusicDelayTimer = 0.0f; // Timer for delay
+    private bool isPendingMusicDelayed = false; // Whether pending music is in delay phase
     
     this() {
         audioSettings = AudioSettings.getInstance();
@@ -92,6 +95,9 @@ class AudioManager {
             initialize();
         }
         
+        // Update sound queue
+        updateSoundQueue(deltaTime);
+        
         // Update music stream with improved error handling
         if (isMusicPlaying && currentMusic.ctxData != null) {
             try {
@@ -115,10 +121,17 @@ class AudioManager {
                 // Fade complete, stop current music
                 StopMusicStream(currentMusic);
                 isFadingOut = false;
+                writeln("AudioManager: Music fade complete, stopped current music");
                 
-                // Play pending music if specified
-                if (pendingMusicPath != "") {
+                // Check if pending music should be delayed
+                if (pendingMusicPath != "" && pendingMusicDelay > 0.0f) {
+                    isPendingMusicDelayed = true;
+                    pendingMusicDelayTimer = 0.0f;
+                    writeln("AudioManager: Starting ", pendingMusicDelay, "s delay before pending music");
+                } else if (pendingMusicPath != "") {
+                    // No delay, play immediately
                     playMusic(pendingMusicPath, pendingMusicVolume, pendingMusicLoop);
+                    writeln("AudioManager: Started pending music: ", pendingMusicPath);
                     pendingMusicPath = "";
                 }
             } else {
@@ -127,8 +140,33 @@ class AudioManager {
                 float currentFadeVolume = originalVolume * (1.0f - fadeRatio);
                 SetMusicVolume(currentMusic, currentFadeVolume);
                 currentMusicVolume = currentFadeVolume; // Update the tracked volume
+                
+                // Debug output every 10% of fade progress
+                if (cast(int)(fadeRatio * 10) != cast(int)((fadeRatio - deltaTime / fadeOutDuration) * 10)) {
+                    writeln("AudioManager: Music fading... ", cast(int)(fadeRatio * 100), "% complete");
+                }
             }
         }
+        
+        // Handle pending music delay after fade completes
+        if (isPendingMusicDelayed) {
+            pendingMusicDelayTimer += deltaTime;
+            
+            if (pendingMusicDelayTimer >= pendingMusicDelay) {
+                // Delay complete, play the pending music
+                if (pendingMusicPath != "") {
+                    playMusic(pendingMusicPath, pendingMusicVolume, pendingMusicLoop);
+                    writeln("AudioManager: Started delayed pending music: ", pendingMusicPath);
+                    pendingMusicPath = "";
+                }
+                isPendingMusicDelayed = false;
+                pendingMusicDelay = 0.0f;
+                pendingMusicDelayTimer = 0.0f;
+            }
+        }
+        
+        // Update sound queue timers and play queued sounds
+        updateSoundQueue(deltaTime);
     }
     
     /**
@@ -356,11 +394,19 @@ class AudioManager {
      *   nextMusicPath = Music to play after fade completes (optional)
      *   nextMusicVolume = Volume for the next music (optional)
      *   nextMusicLoop = Whether to loop the next music (optional)
+     *   nextMusicDelay = Delay in seconds before starting the next music (optional)
      */
-    void fadeOutMusic(float duration, string nextMusicPath = "", float nextMusicVolume = -1.0f, bool nextMusicLoop = true) {
+    void fadeOutMusic(float duration, string nextMusicPath = "", float nextMusicVolume = -1.0f, bool nextMusicLoop = true, float nextMusicDelay = 0.0f) {
         if (!isMusicPlaying || currentMusic.ctxData is null) {
-            // If no music is playing, just play the next music immediately
-            if (nextMusicPath != "") {
+            // If no music is playing, handle delay and then play the next music
+            if (nextMusicPath != "" && nextMusicDelay > 0.0f) {
+                isPendingMusicDelayed = true;
+                pendingMusicDelayTimer = 0.0f;
+                pendingMusicDelay = nextMusicDelay;
+                pendingMusicPath = nextMusicPath;
+                pendingMusicVolume = nextMusicVolume;
+                pendingMusicLoop = nextMusicLoop;
+            } else if (nextMusicPath != "") {
                 playMusic(nextMusicPath, nextMusicVolume, nextMusicLoop);
             }
             return;
@@ -378,6 +424,7 @@ class AudioManager {
         pendingMusicPath = nextMusicPath;
         pendingMusicVolume = nextMusicVolume;
         pendingMusicLoop = nextMusicLoop;
+        pendingMusicDelay = nextMusicDelay;
     }
 
     /**
@@ -448,15 +495,77 @@ class AudioManager {
      *   nextMusicBasePath = Base filename for next music (e.g., "Main Theme - Bejeweled 2.ogg")
      *   nextMusicVolume = Volume for the next music (optional)
      *   nextMusicLoop = Whether to loop the next music (optional)
+     *   nextMusicDelay = Delay in seconds before starting the next music (optional)
      */
-    void fadeOutMusicWithStyle(float duration, string nextMusicBasePath = "", float nextMusicVolume = -1.0f, bool nextMusicLoop = true) {
+    void fadeOutMusicWithStyle(float duration, string nextMusicBasePath = "", float nextMusicVolume = -1.0f, bool nextMusicLoop = true, float nextMusicDelay = 0.0f) {
         if (nextMusicBasePath != "") {
             // Convert base path to full path with current style
             string styleFolderName = (currentMusicStyle == 1) ? "original" : "arranged";
             string fullPath = "resources/audio/music/" ~ styleFolderName ~ "/" ~ nextMusicBasePath;
-            fadeOutMusic(duration, fullPath, nextMusicVolume, nextMusicLoop);
+            fadeOutMusic(duration, fullPath, nextMusicVolume, nextMusicLoop, nextMusicDelay);
         } else {
-            fadeOutMusic(duration, "", nextMusicVolume, nextMusicLoop);
+            fadeOutMusic(duration, "", nextMusicVolume, nextMusicLoop, nextMusicDelay);
+        }
+    }
+    
+    // Sound sequencing system for playing multiple sounds with delays
+    private struct QueuedSound {
+        string filePath;
+        AudioType audioType;
+        float volume;
+        float delay;
+    }
+    
+    private QueuedSound[] soundQueue;
+    private float[] soundQueueTimers;
+    
+    /**
+     * Play multiple sounds in sequence with specified delays
+     * 
+     * Params:
+     *   sounds = Array of sound file paths
+     *   delays = Array of delays (in seconds) before each sound plays
+     *   audioType = Type of audio for all sounds
+     *   volume = Volume override for all sounds
+     */
+    void playSoundSequence(string[] sounds, float[] delays, AudioType audioType = AudioType.SFX, float volume = -1.0f) {
+        if (sounds.length != delays.length) {
+            writeln("Error: sounds and delays arrays must be the same length");
+            return;
+        }
+        
+        // Clear existing queue
+        soundQueue = [];
+        soundQueueTimers = [];
+        
+        // Add sounds to queue
+        for (size_t i = 0; i < sounds.length; i++) {
+            soundQueue ~= QueuedSound(sounds[i], audioType, volume, delays[i]);
+            soundQueueTimers ~= delays[i];
+            writeln("AudioManager: Queued sound [", i, "]: ", sounds[i], " with delay: ", delays[i], "s");
+        }
+        
+        writeln("AudioManager: Queued ", sounds.length, " sounds for sequential playback");
+    }
+    
+    /**
+     * Update sound queue timers and play queued sounds
+     */
+    private void updateSoundQueue(float deltaTime) {
+        for (size_t i = 0; i < soundQueue.length; i++) {
+            soundQueueTimers[i] -= deltaTime;
+            
+            if (soundQueueTimers[i] <= 0.0f) {
+                // Time to play this sound
+                QueuedSound sound = soundQueue[i];
+                writeln("AudioManager: Playing queued sound: ", sound.filePath);
+                bool success = playSound(sound.filePath, sound.audioType, sound.volume);
+                
+                // Remove this sound from the queue
+                soundQueue = soundQueue[0..i] ~ soundQueue[i+1..$];
+                soundQueueTimers = soundQueueTimers[0..i] ~ soundQueueTimers[i+1..$];
+                i--; // Adjust index since we removed an element
+            }
         }
     }
 }
