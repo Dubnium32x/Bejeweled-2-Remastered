@@ -17,9 +17,126 @@ import world.audio_manager;
 
 /*
 
-    NOTES
+    ---- NOTES ----
+
+    ** General Game Screen Design **
+
+    Upon your first time playing, there should be a popup that shows you how to play the game, which slides in from the top of the screen.
+    The game board should be a 2D array of 8 by 8 tiles, each tile can be a different type of gem.
 
     The game board slides in from the right side.
+    The menu bubbles and the score counter should slide in from the left side.
+
+    The game board should be somewhat centered on the screen, moreso to the right, with the menu bubbles and score counter on the left side.
+    
+    When starting the game, the game board should be empty. After a second, the gems should start falling from the top of the game board.
+    This also applies when the game is reset or a new level is started.
+
+
+    ** Game Board Differentiation **
+
+    In Classic and Endless modes, the game board is a 2D array of 8 by 8 gems. No special rules apply.
+
+    In Puzzle mode, the game board is a 2D array of 8 by 8 tiles, but it will load a specific puzzle from the puzzles folder.
+    Each tile is a specific gem type. Perhaps consider loading them from a CSV file or a JSON file.
+    Original and Arranged modes will have different puzzles, so the game will need to load the appropriate puzzle based on the mode.
+
+    In Action mode, the game board is a 2D array of 8 by 8 gems.
+    Similar to Classic mode. The game board will have a progress bar that fills up as the player scores points.
+    However, the progress bar will drain over time, and the player must score points to fill it back up.
+
+    In Time Attack mode, the game board is a 2D array of 8 by 8 gems.
+    Similar to Classic mode, but the player has a limited amount of time to score as many points as possible.
+    Time Attack mode drains the player's progress bar over time, and the player can gain time by scoring points.
+    Once the time runs out, the game ends and the player is taken to the game over screen.
+    Alternatively, once the player reaches the maximum score, the player advances a level.
+
+    In Twilight mode, the game board is a 2D array of 8 by 8 gems.
+    Similar to Classic mode, but the board drops gems from the bottom of the screen instead of the top every other turn.
+    The player must match gems to score points, but the gems will alternate between dropping from the top and bottom of the screen.
+    This also encourages us to develop a game speed mechanic, where in this case, the game speed is lowered to emulate the feeling of twilight.
+    UNLOCKED: The player must reach level 10 in Classic mode.
+
+    In Hyper mode, the game board is a 2D array of 8 by 8 gems.
+    Similar to Action mode, but the game speed is doubled.
+    UNLOCKED: The player must reach level 6 in Action mode.
+
+    In Finity mode, the game board is a 2D array of 8 by 8 gems.
+    Similar to Classic mode, but the game board has bombs, coal, and other special gems that can be used to clear the board.
+    It also has similar rules to Action mode, where the player must score points to advance to the next level.
+    UNLOCKED: The player must reach level 50 in Endless mode.
+
+    In Cognito mode, thte game board is a 2D array of 8 by 8 tiles.
+    Similar to Puzzle mode, but the player must match gems to score points.
+    UNLOCKED: The player must complete Puzzle mode.
+
+    In Original mode, the game board is a 2D array of 8 by 8 gems.
+    Similar to Classic mode, but the game board has a different set of gems and rules.
+    Rather than it playing like a normal game (whether that be Original or Arranged),
+    the gameplay is akin to Bejeweled 1, where the player must match gems to score points.
+    No special gems are present, and the player must score points to advance to the next level.
+    ORIGINAL WILL NOT BE SELECTABLE.
+    To activate Original mode, the player must do a clockwise rotation of the game mode selection wheel 8 times.
+    UNLOCKED: The player must reach level 20 in Classic mode.
+
+
+    ** Gem Types **
+    The game board will have different types of gems, each with a different color and shape.
+    Gems can be red, orange, yellow, green, blue, purple, and white.
+
+    Original and Arranged modes will have some distinct differences in gem types and rules.
+
+    ORIGINAL:
+    - The game rules are akin to Bejeweled 2, where the player must match gems to score points the old-fashioned way.
+    - Any three gems of the same type will clear, and the player will score points.
+    - Any gem color in a straight line of five will clear, and the gem will turn into a Hyper Gem.
+    - Any gem color of the same type of 4 or more (not in a square or five in a row) will clear, and the gem will turn into a Power Gem.
+    - Hyper Gems can match with Hyper Gems, but it will not clear the board.
+
+    ARRANGED:
+    - The game rules are akin to Bejeweled 3 and Stars, where the player must match gems to score points the new-fashioned way.
+    - Any three gems of the same type will clear, and the player will score points.
+    - Any gem color in a straight line of five will clear, and the gem will turn into a Hyper Gem.
+    - Any gem color of the same type of 4 in a line or a square will clear, and the gem will turn into a Power Gem.
+    - Any gem color of the same type of more than 4 in any other speical formation will clear, and the gem will turn into a Lightning Gem.
+    - Hyper Gems can match with Hyper Gems, and it will clear the board.
+
+    Power Gems will explode in a 3x3 area around them when matched, clearing all gems in that area.
+    Lightning Gems will clear all gems in a cross shape around them, clearing all gems in that area.
+    Hyper Gems will clear all gems of the same type on the board, regardless of their position.
+
+
+    ** Other Game Features **
+    The game will have a progress bar that fills up as the player scores points.
+    Each level will have a different progress score to reach, and the player will advance to the next level once the progress bar is full.
+
+    If a player makes a move that does not result in a match, the game will automatically swap the gems back to their original positions.
+    
+
+    ** Animations and Effects **
+    The game will have animations for when gems are matched, when the game board slides in, and when the menu bubbles and score counter slide in.
+    For example, when gems are matched, they will animate and shrink down to nothing, with a particle effect of sparkles or stars.
+    
+    When a gem is in the zone of an active special gem, it will shake and explode in a burst of color and particles.
+    Lightning and Hyper Gems will have a special animation when they are matched, with a burst of color and particles,
+    along with lightning effects that may need to be implemented with care.
+
+    When a gem is selected, it will have a glowing effect around it, indicating that it is selected.
+    When a gem is hovered over, it will have a slight scaling effect to indicate that it is being hovered over.
+    
+    Special gems will have a glow to them that spreads outwards. Use a shader to achieve this effect.
+
+    Let't not forget about the wormhole effect! 
+    When a level is complete, the game background will have a wormhole effect that swirls around the screen,
+    which then... Plays a sequence of the player advancing to the next level through the wormhole.
+    I reckon we may need to implement a shader or a 3D model for this effect.
+
+    Speaking of, we will have to implement a different wormhole effect for screen transitions.
+    Image resources/image/nr_ringdude.png should be use for the wormhole effect.
+    The wormhole effect will be a swirling effect that transitions between screens.
+    We will just need to figure out how to implement this effect in Raylib, so that it masks the transition between screens.
+
+
 
 */
 

@@ -183,6 +183,13 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
         // No video settings application here to prevent flashing
         applyGameplaySettings();
 
+        // Apply texture filtering to fonts for better quality
+        foreach (font; app.fontFamily) {
+            if (font.texture.id > 0) {
+                SetTextureFilter(font.texture, TextureFilter.TEXTURE_FILTER_BILINEAR);
+            }
+        }
+
         writeln("Options Screen Initialized with " ~ optionsFilePath);
     }
 

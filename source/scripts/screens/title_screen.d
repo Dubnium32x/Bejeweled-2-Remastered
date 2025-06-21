@@ -633,6 +633,14 @@ class TitleScreen : IScreen {
         alphaMapTextures();
         sliceSparkleTextures();
 
+        // Apply texture filtering to fonts for better quality
+        foreach (font; fontFamily) {
+            if (font.texture.id > 0) {
+                SetTextureFilter(font.texture, TextureFilter.TEXTURE_FILTER_BILINEAR);
+                writeln("Applied bilinear filtering to font texture ID: ", font.texture.id);
+            }
+        }
+
         // Initialize positions
         logoTargetY = (VIRTUAL_SCREEN_HEIGHT - logoTexture.height) / 8; // Changed
         logoStartY = VIRTUAL_SCREEN_HEIGHT + 50.0f; // Start below screen // Changed

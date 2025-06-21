@@ -27,17 +27,23 @@ float fadeAlpha = 0.0f;
 float displayTimer = 0.0f;
 
 // Phase timing (in seconds)
+float anniversaryFadeInTime = 1.0f;
+float anniversaryDisplayTime = 6.0f; // Show anniversary message for 6 seconds
+float anniversaryFadeOutTime = 1.0f;
 float fadeInTime = 1.0f;
 float displayTime = 2.5f;
 float fadeOutTime = 1.0f;
 
 // Loading states
 enum LoadingPhase {
+    ANNIVERSARY_FADE_IN,
+    ANNIVERSARY_DISPLAY,
+    ANNIVERSARY_FADE_OUT,
     FADE_IN,
     DISPLAY,
     FADE_OUT
 }
-LoadingPhase currentPhase = LoadingPhase.FADE_IN;
+LoadingPhase currentPhase = LoadingPhase.ANNIVERSARY_FADE_IN;
 
 // ---- ENUMS ----
 enum InitScreenState {
@@ -100,7 +106,7 @@ class InitScreen : IScreen {
         fadeAlpha = 0.0f;
         timer = 0.0f;
         displayTimer = 0.0f;
-        currentPhase = LoadingPhase.FADE_IN;
+        currentPhase = LoadingPhase.ANNIVERSARY_FADE_IN;
 
         // Load textures using the memory manager for caching
         popcapTexture = memoryManager.loadTexture("resources/image/title_popcap.png");
@@ -108,6 +114,15 @@ class InitScreen : IScreen {
         
         // Preload resources silently at initialization time
         preloadResources();
+
+        // Apply texture filtering to fonts for better quality
+        // Note: fontFamily is imported from app module
+        foreach (font; fontFamily) {
+            if (font.texture.id > 0) {
+                SetTextureFilter(font.texture, TextureFilter.TEXTURE_FILTER_BILINEAR);
+                writeln("Applied bilinear filtering to font texture ID: ", font.texture.id);
+            }
+        }
 
         state = InitScreenState.INITIALIZED;
         writeln("InitScreen initialized successfully.");
@@ -124,8 +139,36 @@ class InitScreen : IScreen {
         
         // Handle the different phases of the intro screen
         final switch (currentPhase) {
+            case LoadingPhase.ANNIVERSARY_FADE_IN:
+                // Fade in anniversary message
+                fadeAlpha += deltaTime * (1.0f / anniversaryFadeInTime);
+                if (fadeAlpha >= 1.0f) {
+                    fadeAlpha = 1.0f;
+                    currentPhase = LoadingPhase.ANNIVERSARY_DISPLAY;
+                    timer = 0.0f;
+                }
+                break;
+                
+            case LoadingPhase.ANNIVERSARY_DISPLAY:
+                // Display anniversary message
+                if (timer >= anniversaryDisplayTime) {
+                    currentPhase = LoadingPhase.ANNIVERSARY_FADE_OUT;
+                    timer = 0.0f;
+                }
+                break;
+                
+            case LoadingPhase.ANNIVERSARY_FADE_OUT:
+                // Fade out anniversary message
+                fadeAlpha -= deltaTime * (1.0f / anniversaryFadeOutTime);
+                if (fadeAlpha <= 0.0f) {
+                    fadeAlpha = 0.0f;
+                    currentPhase = LoadingPhase.FADE_IN;
+                    timer = 0.0f;
+                }
+                break;
+                
             case LoadingPhase.FADE_IN:
-                // Fade in animation
+                // Fade in PopCap logo
                 fadeAlpha += deltaTime * (1.0f / fadeInTime);
                 if (fadeAlpha >= 1.0f) {
                     fadeAlpha = 1.0f;
@@ -251,27 +294,69 @@ class InitScreen : IScreen {
         Color fadeColor = Colors.WHITE;
         fadeColor.a = cast(ubyte)(255 * fadeAlpha);
         
-        // Draw PopCap logo with current fade level
-        DrawTexture(
-            popcapTexture, 
-            (VIRTUAL_SCREEN_WIDTH - popcapTexture.width) / 2,
-            (VIRTUAL_SCREEN_HEIGHT - popcapTexture.height) / 2 + 20, // Adjusted Y position slightly down
-            fadeColor
-        );
-        
-        // Draw "Original game by" text above the logo
-        string originalByText = "Original game by:";
-        DrawTextEx(
-            fontFamily[2],
-            originalByText.toStringz(),
-            Vector2(
-                (VIRTUAL_SCREEN_WIDTH - MeasureTextEx(fontFamily[2], originalByText.toStringz(), 20, 1.0f).x) / 2,
-                (VIRTUAL_SCREEN_HEIGHT - popcapTexture.height) / 2 - 20 // Centered horizontally and positioned slightly above the logo
-            ),
-            20,
-            1.0f, // Spacing between characters
-            fadeColor
-        );
+        // Draw different content based on current phase
+        if (currentPhase == LoadingPhase.ANNIVERSARY_FADE_IN || 
+            currentPhase == LoadingPhase.ANNIVERSARY_DISPLAY || 
+            currentPhase == LoadingPhase.ANNIVERSARY_FADE_OUT) {
+            
+            // Draw anniversary celebration message
+            string[] anniversaryLines = [
+                "CELEBRATING 25 YEARS OF BEJEWELED!",
+                "",
+                "This fan-made remaster is created with love and respect",
+                "for the original masterpiece by PopCap Games.",
+                "",
+                "This project has NO official endorsement or affiliation",
+                "with the original developers or current rights holders.",
+                "",
+                "Please support the original creators by purchasing",
+                "official Bejeweled games and products!",
+                "",
+                "Thank you to PopCap Games for creating this timeless classic."
+            ];
+            
+            float fontSize = 32.0f; // Increased from 24.0f
+            float lineHeight = 40.0f; // Increased from 32.0f
+            float totalHeight = anniversaryLines.length * lineHeight;
+            float startY = (VIRTUAL_SCREEN_HEIGHT - totalHeight) / 2.0f;
+            
+            foreach (i, line; anniversaryLines) {
+                if (line.length > 0) { // Skip empty lines for drawing
+                    float currentFontSize = (i == 0) ? 36.0f : 28.0f; // Different size for title
+                    Font currentFont = (i == 0) ? fontFamily[2] : fontFamily[1];
+                    
+                    float textWidth = MeasureTextEx(currentFont, line.toStringz(), currentFontSize, 1.0f).x;
+                    float textX = (VIRTUAL_SCREEN_WIDTH - textWidth) / 2.0f;
+                    float textY = startY + i * lineHeight;
+                    
+                    // Draw text with improved quality from bilinear filtering
+                    DrawTextEx(currentFont, line.toStringz(), Vector2(textX, textY), currentFontSize, 1.0f, fadeColor);
+                }
+            }
+            
+        } else {
+            // Draw PopCap logo and "Original game by" text
+            DrawTexture(
+                popcapTexture, 
+                (VIRTUAL_SCREEN_WIDTH - popcapTexture.width) / 2,
+                (VIRTUAL_SCREEN_HEIGHT - popcapTexture.height) / 2 + 20, // Adjusted Y position slightly down
+                fadeColor
+            );
+            
+            // Draw "Original game by" text above the logo
+            string originalByText = "Original game by:";
+            DrawTextEx(
+                fontFamily[2],
+                originalByText.toStringz(),
+                Vector2(
+                    (VIRTUAL_SCREEN_WIDTH - MeasureTextEx(fontFamily[2], originalByText.toStringz(), 20, 1.0f).x) / 2,
+                    (VIRTUAL_SCREEN_HEIGHT - popcapTexture.height) / 2 - 20 // Centered horizontally and positioned slightly above the logo
+                ),
+                20,
+                1.0f, // Spacing between characters
+                fadeColor
+            );
+        }
     }
 
     void unload() {

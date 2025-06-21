@@ -95,6 +95,13 @@ class QuitDialog {
         
         // Set up button rectangles
         updateButtonRects();
+
+        // Apply texture filtering to fonts for better quality
+        foreach (font; fontFamily) {
+            if (font.texture.id > 0) {
+                SetTextureFilter(font.texture, TextureFilter.TEXTURE_FILTER_BILINEAR);
+            }
+        }
         
         writeln("QuitDialog initialized");
 
