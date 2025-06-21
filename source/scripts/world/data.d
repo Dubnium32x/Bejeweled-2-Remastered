@@ -2,6 +2,10 @@ module data;
 
 import std.stdio;
 import std.array;
+import std.file;
+import std.json;
+import std.path;
+import std.conv : to;
 
 // Check if the player has chosen Original or Arranged mode
 enum GameMode {
@@ -10,6 +14,9 @@ enum GameMode {
 }
 
 GameMode currentGameMode;
+
+// Track the most recently played game mode (0=Classic, 1=Action, 2=Endless, 3=Puzzle)
+int mostRecentGameMode = 0; // Default to Classic
 
 // Check if the player has saved data for each game mode
 bool playerHasSavedGame = false;
@@ -357,4 +364,60 @@ void setCurrentGameMode(GameMode mode) {
     }
     currentGameMode = mode;
     writeln("Current game mode set to: ", mode);
+}
+
+// Function to save the most recent game mode to JSON file
+void saveMostRecentGameMode(int mode) {
+    try {
+        JSONValue json;
+        json["mostRecentGameMode"] = mode;
+        
+        string saveDir = "save";
+        if (!exists(saveDir)) {
+            mkdir(saveDir);
+        }
+        
+        string filePath = buildPath(saveDir, "most_recent_mode.json");
+        std.file.write(filePath, json.toString());
+        mostRecentGameMode = mode; // Update the variable
+        writeln("Most recent game mode saved: ", mode);
+    } catch (Exception e) {
+        writeln("Error saving most recent game mode: ", e.msg);
+    }
+}
+
+// Function to load the most recent game mode from JSON file
+void loadMostRecentGameMode() {
+    try {
+        string filePath = buildPath("save", "most_recent_mode.json");
+        if (exists(filePath)) {
+            string jsonData = cast(string) std.file.read(filePath);
+            JSONValue json = parseJSON(jsonData);
+            mostRecentGameMode = json["mostRecentGameMode"].integer.to!int;
+            writeln("Most recent game mode loaded: ", mostRecentGameMode);
+        } else {
+            writeln("No saved most recent game mode found, using default (Classic)");
+            mostRecentGameMode = 0; // Default to Classic
+        }
+    } catch (Exception e) {
+        writeln("Error loading most recent game mode: ", e.msg, " - using default (Classic)");
+        mostRecentGameMode = 0; // Default to Classic on error
+    }
+}
+
+// Function to get the most recent game mode
+int getMostRecentGameMode() {
+    return mostRecentGameMode;
+}
+
+// Test function to set the most recent game mode (for testing different modes)
+void setMostRecentGameMode(int mode) {
+    if (mode >= 0 && mode <= 3) {
+        mostRecentGameMode = mode;
+        saveMostRecentGameMode(mode);
+        writeln("Test: Set most recent game mode to ", mode, " (", 
+               mode == 0 ? "Classic" : mode == 1 ? "Action" : mode == 2 ? "Endless" : "Puzzle", ")");
+    } else {
+        writeln("Invalid mode: ", mode, " (valid range: 0-3)");
+    }
 }

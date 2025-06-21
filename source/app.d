@@ -80,9 +80,6 @@ void main() {
     quincy = memManager.loadFont("resources/font/quincy.ttf", 24);
     
     fontFamily = [continuumBold, continuumLight, continuumMedium, cristal, quincy];
-
-    // Initialize audio device first
-    InitAudioDevice();
     
     // Initialize memory manager
     auto memoryManager = MemoryManager.instance();
@@ -107,6 +104,12 @@ void main() {
     screenManager.changeState(ScreenState.INIT);
 
     optionsScreen = new OptionsScreen();
+    
+    // Initialize audio manager with the correct music style from options
+    if (audioManager !is null) {
+        audioManager.setMusicStyle(optionsScreen.getCurrentMusicStyle());
+        writeln("Set audio manager music style to: ", optionsScreen.getCurrentMusicStyle());
+    }
     
     // Check for and apply any pending resolution changes from previous sessions
     // This happens at startup before any rendering, so it won't cause disruptive flashes

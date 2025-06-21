@@ -18,6 +18,7 @@ import std.range;
 import data;
 import screens.popups.name_entry;
 import screens.popups.options; // Added import for options screen
+import screens.popups.quit_dialog; // Added import for quit dialog
 import world.screen_manager;
 import world.memory_manager;
 import world.audio_manager;
@@ -40,9 +41,20 @@ Texture sparkleTexture; // Texture is used for sparkle animation (and its own al
 Texture planetTexture;
 Texture planetAlpha;
 Texture whitenedLogo2Texture;
+Texture cometTexture;
 
 Texture orbHoverTexture;
+Texture orbGlowTexture; // Extra glow effect for menu buttons
+Texture portalCenterGlowTexture; // Central portal glow effect
+Texture portalMoonSelectTexture; // Rotating moon portal effect
 Texture subtitleTexture;
+
+// Center text textures (chopped into 4 pieces for each game mode)
+Texture centerTextTexture; // Main center text texture
+Texture centerTextAlpha; // Alpha mask for center text
+
+// Orb strobing texture for most recently played mode indicator
+Texture orbStrobeTexture; // Big-Dim.png for strobing effect
 
 // New: Main Menu Button Textures
 Texture mainMenuButtonTexture;
@@ -144,6 +156,42 @@ struct Star {
     }
 }
 
+
+// ---- COMET STEAM STRUCT ----
+struct CometSteam {
+    Vector2 position;
+    float velocityX;
+    float velocityY;
+    Color color;
+    float alpha; // Opacity of the steam
+    float lifetime; // Time until the steam disappears
+    float timer; // Timer to track lifetime
+    bool active; // Whether the steam is currently active
+    float scale; // Scale of the particle
+    float rotation; // Rotation of the particle
+
+    void update(float deltaTime) {
+        if (active) {
+            position.x += velocityX * deltaTime;
+            position.y += velocityY * deltaTime;
+            timer += deltaTime;
+            
+            // Fade out over lifetime
+            float fadeProgress = timer / lifetime;
+            alpha = 1.0f - fadeProgress;
+            
+            // Scale down over time (less aggressive scaling)
+            scale = 1.0f - (fadeProgress * 0.3f);
+            
+            // No rotation logic
+            
+            if (timer >= lifetime) {
+                active = false; // Deactivate when lifetime expires
+            }
+        }
+    }
+}
+
 // ---- CLASS ----
 class TitleScreen : IScreen {
     // Singleton instance
@@ -152,6 +200,7 @@ class TitleScreen : IScreen {
     private AudioManager audioManager;
     private NameEntry nameEntryDialog; // Changed: Declare without initializing
     private OptionsScreen optionsPopup; // Added for options popup
+    private QuitDialog quitDialog; // Added for quit confirmation dialog
 
     // Current state of the screen
     TitleState state;
@@ -180,6 +229,37 @@ class TitleScreen : IScreen {
     private float menuButtonScale = 1.0f;
     private int lastHoveredButton = 0; // 0=none, 1=classic, 2=action, 3=endless, 4=puzzle, 5=toggle, 6=return
     
+    // Last played mode indicator
+    private float lastPlayedGlowAlpha = 0.6f; // Persistent glow alpha for last played mode
+    private float lastPlayedGlowPulse = 0.0f; // Time for subtle pulsing effect
+    
+    // Portal effect variables
+    private float portalRotation = 0.0f; // Rotation angle for the moon portal
+    private Color portalColor = Color(200, 200, 200, 200); // Current color that changes based on selected button - default more visible
+    private Color portalTargetColor = Color(200, 200, 200, 200); // Target color for smooth transitions
+    private float portalColorFadeSpeed = 5.0f; // Speed of color transitions (higher = faster)
+    
+    // Center text animation variables
+    private float centerTextScaleX = 1.0f; // Current horizontal scale of center text
+    private float centerTextTargetScaleX = 1.0f; // Target horizontal scale
+    private float centerTextAnimAlpha = 0.0f; // Current alpha for fade effect (renamed to avoid conflict)
+    private float centerTextTargetAlpha = 0.0f; // Target alpha
+    private float centerTextAnimationSpeed = 8.0f; // Speed of scale and fade animations
+    private int currentCenterTextPiece = -1; // Track which text piece is currently shown (-1 = none)
+    
+    // Wave effect variables
+    private float centerTextWaveTime = 0.0f; // Time accumulator for wave animation
+    private float centerTextWaveAmplitude = 3.0f; // How far the wave moves (pixels) - reduced for subtlety
+    private float centerTextWaveFrequency = 2.0f; // How fast the wave moves - slower for smoother effect
+    private float centerTextWaveLength = 0.8f; // How stretched the wave is (higher = more gentle curves)
+    
+    // Orb strobing variables (for most recently played mode indicator)
+    private float orbStrobeTimer = 0.0f; // Timer for strobing sequence
+    private int currentStrobeOrb = -1; // Which orb is currently strobing (0-5, -1 = none/waiting)
+    private float orbStrobeAlpha = 0.0f; // Current alpha of the strobing orb
+    private float orbStrobeDuration = 0.3f; // How long each orb stays lit
+    private float orbStrobeWaitDuration = 0.5f; // How long to wait between sequences
+    
     // Define centerX as class member
     private float centerX;
     private float centerY;
@@ -187,6 +267,7 @@ class TitleScreen : IScreen {
     // New: Flags and speeds for transition animations
     private bool titleElementsMovingOff = false;
     private bool menuGadgetsMovingOn = false;
+    private bool menuGadgetsMovingOff = false;
     private float offScreenAnimationSpeed = 600.0f; // Reduced from 1200.0f to 600.0f for slower logo rise
     private float menuGadgetsAnimationSpeed = 1000.0f; // Pixels per second
     private float menuGadgetsScale = 1.0f; // Adjusted scale for better fit with original game
@@ -227,6 +308,17 @@ class TitleScreen : IScreen {
     private bool smallLogoIsShown;              // Controls visibility and if it *should* be on screen or animating
     private float smallLogoAnimationTimer;
     private float smallLogoAnimationDuration;
+    private Vector2 cometPosition; // Position of the comet for small logo animation
+    private Vector2 cometDirection; // Direction of comet movement for particle alignment
+    private CometSteam[] cometSteams; // Array of comet steam effects
+    private Vector2 cometStartPosition; // Starting position of the comet
+    private Vector2 cometEndPosition; // Ending position of the comet
+    private bool cometActive = false; // Whether the comet is currently active
+    private bool cometMoving = false; // Whether the comet is currently moving
+    private float cometSpeed = 600.0f; // Speed of comet movement (pixels per second)
+    private float cometParticleEmitTimer = 0.0f; // Timer for particle emission
+    private float cometParticleEmitInterval = 0.005f; // Emit particles every 5ms for ultra dense trail
+    private int nextCometSteamIndex = 0; // For particle pooling
 
     // Main Menu Buttons
     private string[] mainMenuButtonLabels;
@@ -320,6 +412,8 @@ class TitleScreen : IScreen {
             "resources/image/sparkle.png",
             "resources/image/planet1.png",
             "resources/image/planet1_.png",
+            // PATCH: Add comet texture
+            "resources/image/comet.png",
             // PATCH: Add mist textures
             "resources/image/mist_background.png",
             "resources/image/mist.png",
@@ -342,6 +436,9 @@ class TitleScreen : IScreen {
             // Add orb texture
             // "resources/image/MMSGamerollover_.png" // This texture is not used in the title screen, so it can be omitted here
             "resources/image/MMSGamerollover_.png",
+            "resources/image/MMSGameelect_.png", // Extra glow effect
+            "resources/image/menu-centerglow.png", // Portal center glow
+            "resources/image/MoonSelect_.png", // Rotating portal moon effect
             // Add subtitle texture
             "resources/image/subtitle.png"
         ];
@@ -384,6 +481,8 @@ class TitleScreen : IScreen {
         nameEntryDialog = new NameEntry();
         // Initialize options popup
         optionsPopup = new OptionsScreen();
+        // Initialize quit dialog
+        quitDialog = new QuitDialog();
 
         // Load textures
         backgroundTexture = LoadTexture("resources/image/backdrops/backdrop_title_A.png");
@@ -421,6 +520,10 @@ class TitleScreen : IScreen {
         mistForegroundTexture = LoadTexture("resources/image/mist.png");
         SetTextureFilter(mistForegroundTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         
+        // PATCH: Load comet texture
+        cometTexture = LoadTexture("resources/image/comet.png");
+        SetTextureFilter(cometTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
+
         // Load menu button textures
         classicTexture = LoadTexture("resources/image/Classic.png");
         SetTextureFilter(classicTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
@@ -440,6 +543,22 @@ class TitleScreen : IScreen {
         SetTextureFilter(puzzleAlpha, TextureFilter.TEXTURE_FILTER_BILINEAR);
         orbHoverTexture = LoadTexture("resources/image/MMSGamerollover_.png");
         SetTextureFilter(orbHoverTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
+        orbGlowTexture = LoadTexture("resources/image/MMSGameelect_.png");
+        SetTextureFilter(orbGlowTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
+        portalCenterGlowTexture = LoadTexture("resources/image/menu-centerglow.png");
+        SetTextureFilter(portalCenterGlowTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
+        portalMoonSelectTexture = LoadTexture("resources/image/MoonSelect_.png");
+        SetTextureFilter(portalMoonSelectTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
+
+        // Load center text textures (4 pieces for each game mode)
+        centerTextTexture = LoadTexture("resources/image/centertext.png");
+        SetTextureFilter(centerTextTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
+        centerTextAlpha = LoadTexture("resources/image/centertext_.png");
+        SetTextureFilter(centerTextAlpha, TextureFilter.TEXTURE_FILTER_BILINEAR);
+
+        // Load orb strobing texture for most recently played mode indicator
+        orbStrobeTexture = LoadTexture("resources/image/Big-Dim.png");
+        SetTextureFilter(orbStrobeTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
 
         // New: Load Main Menu Button Textures
         mainMenuButtonTexture = LoadTexture("resources/image/menu_button.png");
@@ -479,6 +598,9 @@ class TitleScreen : IScreen {
         // TODO: Add actual save file detection
         hasClassicSavedGame = false;
         hasActionSavedGame = false;
+        
+        // Load most recent game mode from save file
+        data.loadMostRecentGameMode();
         
         // Set up level text based on saved game state
         classicLevelText = "LEVEL " ~ to!string(playerSavedClassicLevel);
@@ -554,6 +676,20 @@ class TitleScreen : IScreen {
         smallLogoCurrentY = smallLogoStartY; 
 
         smallLogoBasePosition = Vector2(15.0f, smallLogoTargetY); 
+
+        // PATCH: Initialize comet position and steam effects
+        cometStartPosition = Vector2(VIRTUAL_SCREEN_WIDTH + 50.0f, -50.0f); // Start at top right, off screen
+        cometEndPosition = Vector2(-100.0f, VIRTUAL_SCREEN_HEIGHT * 0.6f); // End at bottom left, off screen
+        cometPosition = cometStartPosition; // Store the initial position for animation
+        cometDirection = Vector2(-1.0f, 0.0f); // Initialize with default leftward direction
+        cometActive = false; // Start with comet inactive
+        cometMoving = false; // Start with comet not moving
+        cometSteams = new CometSteam[200]; // Create an array for 100 comet steam effects
+        
+        // Initialize all steam particles as inactive
+        for (int i = 0; i < cometSteams.length; i++) {
+            cometSteams[i].active = false;
+        }
 
         // New calculation for smallLogo2RelativePosition:
         float actualScaledBejeweledWidth = logoTexture.width * smallLogoScale; // Width of "BEJEWELED" part
@@ -638,7 +774,7 @@ class TitleScreen : IScreen {
         mainMenuButtonsAnimationDuration = 0.5f; // Animation duration for buttons
     
         // Play autonomous music if not already playing
-        audioManager.playMusic("resources/audio/music/arranged/Autonomous.ogg"); // Changed to playMusic
+        audioManager.playMusicWithStyle("Autonomous.ogg"); // Use style-aware music playback
     }
 
     static void debugLog(string msg) {
@@ -726,6 +862,15 @@ class TitleScreen : IScreen {
         UnloadImage(classicImage);
         UnloadImage(classicAlphaImage);
         
+        // PATCH: Apply alpha mapping to comet texture
+        Image cometImage = LoadImageFromTexture(cometTexture);
+        Image cometAlphaImage = LoadImageFromTexture(cometTexture); // Use the same image as alpha
+        ImageAlphaMask(&cometImage, cometAlphaImage);
+        cometTexture = LoadTextureFromImage(cometImage);
+        SetTextureFilter(cometTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
+        UnloadImage(cometImage);
+        UnloadImage(cometAlphaImage);
+
         Image actionImage = LoadImageFromTexture(actionTexture);
         Image actionAlphaImage = LoadImageFromTexture(actionAlpha);
         ImageAlphaMask(&actionImage, actionAlphaImage);
@@ -756,6 +901,33 @@ class TitleScreen : IScreen {
         ImageAlphaMask(&orbHoverImage, orbHoverAlphaImage);
         orbHoverTexture = LoadTextureFromImage(orbHoverImage);
         SetTextureFilter(orbHoverTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
+        
+        // Apply alpha mapping to orb glow texture
+        Image orbGlowImage = LoadImageFromTexture(orbGlowTexture);
+        Image orbGlowAlphaImage = LoadImageFromTexture(orbGlowTexture); // Use itself as alpha mask
+        ImageAlphaMask(&orbGlowImage, orbGlowAlphaImage);
+        orbGlowTexture = LoadTextureFromImage(orbGlowImage);
+        SetTextureFilter(orbGlowTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
+        UnloadImage(orbGlowImage);
+        UnloadImage(orbGlowAlphaImage);
+        
+        // Apply alpha mapping to portal moon select texture
+        Image portalMoonImage = LoadImageFromTexture(portalMoonSelectTexture);
+        Image portalMoonAlphaImage = LoadImageFromTexture(portalMoonSelectTexture); // Use itself as alpha mask
+        ImageAlphaMask(&portalMoonImage, portalMoonAlphaImage);
+        portalMoonSelectTexture = LoadTextureFromImage(portalMoonImage);
+        SetTextureFilter(portalMoonSelectTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
+        UnloadImage(portalMoonImage);
+        UnloadImage(portalMoonAlphaImage);
+        
+        // Apply alpha mapping to center text texture
+        Image centerTextImage = LoadImageFromTexture(centerTextTexture);
+        Image centerTextAlphaImage = LoadImageFromTexture(centerTextAlpha);
+        ImageAlphaMask(&centerTextImage, centerTextAlphaImage);
+        centerTextTexture = LoadTextureFromImage(centerTextImage);
+        SetTextureFilter(centerTextTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
+        UnloadImage(centerTextImage);
+        UnloadImage(centerTextAlphaImage);
     }
 
     void sliceSparkleTextures() {
@@ -798,6 +970,18 @@ class TitleScreen : IScreen {
     }
 
     void update(float dt) {
+        // TEST: Keyboard controls to test different last played modes
+        // Press 1-4 to set Classic, Action, Endless, or Puzzle as last played
+        if (IsKeyPressed(KeyboardKey.KEY_ONE)) {
+            data.setMostRecentGameMode(0); // Classic
+        } else if (IsKeyPressed(KeyboardKey.KEY_TWO)) {
+            data.setMostRecentGameMode(1); // Action
+        } else if (IsKeyPressed(KeyboardKey.KEY_THREE)) {
+            data.setMostRecentGameMode(2); // Endless
+        } else if (IsKeyPressed(KeyboardKey.KEY_FOUR)) {
+            data.setMostRecentGameMode(3); // Puzzle
+        }
+        
         // Update audio manager to handle music fades
         audioManager.update(dt);
         
@@ -864,6 +1048,14 @@ class TitleScreen : IScreen {
             if (progress >= 1.0f) {
                 smallLogoAnimatingIn = false;
                 smallLogoCurrentY = smallLogoTargetY; 
+                
+                // Trigger comet animation when small logo finishes animating in
+                if (!cometActive && !cometMoving) {
+                    cometActive = true;
+                    cometMoving = true;
+                    cometPosition = cometStartPosition;
+                    cometParticleEmitTimer = 0.0f;
+                }
             }
         } else if (smallLogoAnimatingOut) {
             smallLogoAnimationTimer += dt;
@@ -927,6 +1119,54 @@ class TitleScreen : IScreen {
              }
             for (size_t i = 0; i < mainMenuButtonLabels.length; i++) {
                 mainMenuButtonRects[i].x = mainMenuButtonCurrentX; 
+            }
+        }
+
+        // --- Comet Animation Logic ---
+        if (cometActive && cometMoving) {
+                // Move comet from right to left
+                Vector2 direction = Vector2(cometEndPosition.x - cometStartPosition.x, cometEndPosition.y - cometStartPosition.y);
+                float distance = sqrt(direction.x * direction.x + direction.y * direction.y);
+                
+                // Avoid division by zero
+                if (distance > 0.0f) {
+                    Vector2 normalizedDirection = Vector2(direction.x / distance, direction.y / distance);
+                    
+                    cometPosition.x += normalizedDirection.x * cometSpeed * dt;
+                    cometPosition.y += normalizedDirection.y * cometSpeed * dt;
+                    
+                    // Store the comet direction for particle emission
+                    cometDirection = normalizedDirection;
+                    
+                    // Emit particles while moving
+                    cometParticleEmitTimer += dt;
+                    if (cometParticleEmitTimer >= cometParticleEmitInterval) {
+                        emitCometParticle();
+                        cometParticleEmitTimer = 0.0f;
+                    }
+                    
+                    // Check if comet reached the end position
+                    float distanceToEnd = sqrt((cometPosition.x - cometEndPosition.x) * (cometPosition.x - cometEndPosition.x) + 
+                                              (cometPosition.y - cometEndPosition.y) * (cometPosition.y - cometEndPosition.y));
+                    if (distanceToEnd < 10.0f) {
+                        cometMoving = false;
+                        cometActive = false;
+                        debugLog("Comet animation completed");
+                    }
+                } else {
+                // If start and end positions are the same, just stop the comet
+                cometMoving = false;
+                cometActive = false;
+                debugLog("Comet start and end positions are the same, stopping animation");
+            }
+        }
+        
+        // Update comet steam particles
+        if (cometSteams !is null) {
+            for (int i = 0; i < cometSteams.length; i++) {
+                if (cometSteams[i].active) {
+                    cometSteams[i].update(dt);
+                }
             }
         }
 
@@ -1057,6 +1297,50 @@ class TitleScreen : IScreen {
             }
         }
 
+        // Handle menu gadgets moving off screen
+        if (menuGadgetsMovingOff) {
+            // Move menu gadgets down and off screen at constant speed
+            float offScreenTargetY = VIRTUAL_SCREEN_HEIGHT + 100.0f; // Move well below screen
+            float moveSpeed = menuGadgetsAnimationSpeed * dt; // Use the same speed as moving on
+            
+            if (menuGadgetsPosition.y < offScreenTargetY) {
+                menuGadgetsPosition.y += moveSpeed;
+                
+                // Update button positions as menu gadgets move
+                float centerX = VIRTUAL_SCREEN_WIDTH / 2.0f;
+                float centerY = menuGadgetsPosition.y + (menuGadgetsTexture.height * menuGadgetsScale) / 2.0f;
+                float topRowY = menuGadgetsPosition.y + menuGadgetsTexture.height * menuGadgetsScale * 0.22f;
+                float bottomRowY = menuGadgetsPosition.y + menuGadgetsTexture.height * menuGadgetsScale * 0.67f;
+                float halfWidth = (menuGadgetsTexture.width * menuGadgetsScale) / 2.0f;
+                float leftX = centerX - halfWidth * 0.49f;
+                float rightX = centerX + halfWidth * 0.49f;
+
+                classicButtonPosition = Vector2(leftX, topRowY);
+                actionButtonPosition = Vector2(rightX, topRowY);
+                puzzleButtonPosition = Vector2(leftX, bottomRowY);
+                endlessButtonPosition = Vector2(rightX, bottomRowY);
+                
+                // Check if menu gadgets have moved enough to start the main menu transition
+                // Start the main menu transition when gadgets are about 60% off screen for smoother overlap
+                float transitionTriggerY = VIRTUAL_SCREEN_HEIGHT * 0.6f;
+                if (menuGadgetsPosition.y >= transitionTriggerY && state != TitleState.MAINMENU) {
+                    state = TitleState.MAINMENU; // Switch to main menu while gadgets are still sliding off
+                    writeln("Menu gadgets 60% off screen - switched to MAINMENU while animation continues");
+                }
+                
+                // Snap to target if we've gone past it
+                if (menuGadgetsPosition.y >= offScreenTargetY) {
+                    menuGadgetsPosition.y = offScreenTargetY;
+                    menuGadgetsMovingOff = false; // Animation complete
+                }
+            } else {
+                menuGadgetsPosition.y = offScreenTargetY;
+                menuGadgetsMovingOff = false; // Animation complete
+                state = TitleState.MAINMENU; // Now switch to main menu
+                writeln("Menu gadgets moved off screen - switched to MAINMENU");
+            }
+        }
+
         // Handle fade from black effect
         if (screenFadeAlpha > 0.0f) { // No change here, initial fade is fine
             screenFadeAlpha -= dt * 2.0f; 
@@ -1151,6 +1435,13 @@ class TitleScreen : IScreen {
             }
         }
 
+        // Update the comet animation
+        // if (state == TitleState.MAINMENU) {
+        //     cometPosition.x -= 200 * dt;
+        //     cometPosition.y += 50.0f * sin(cometPosition.x / 100.0f); // Gentle vertical oscillation
+        // }
+
+
         // Handle state transitions and button click
         switch (state) {
             case TitleState.LOGO:
@@ -1216,7 +1507,7 @@ class TitleScreen : IScreen {
                                                                     // buttonScale is already pulsing, it will continue from current scale
 
                                     // Fade out the title music and transition to main menu music
-                                    audioManager.fadeOutMusic(2.0f, "resources/audio/music/arranged/Main Theme - Bejeweled 2.ogg");
+                                    audioManager.fadeOutMusicWithStyle(2.0f, "Main Theme - Bejeweled 2.ogg");
                                 }
                            }
                         }
@@ -1289,7 +1580,8 @@ class TitleScreen : IScreen {
                                     break;
                                 case 4: // QUIT GAME
                                     writeln("QUIT GAME clicked");
-                                    // Example: screenManager.requestClose = true; // If you have such a mechanism
+                                    state = TitleState.QUIT;
+                                    quitDialog.show();
                                     break;
                                 default:
                                     break;
@@ -1326,9 +1618,156 @@ class TitleScreen : IScreen {
                 }
                 break;
                 
+            case TitleState.QUIT:
+                // Update quit dialog
+                quitDialog.update(dt);
+                
+                // Check if quit dialog finished with confirmation
+                if (quitDialog.isDone()) {
+                    // User confirmed quit and goodbye message finished
+                    writeln("Application will now close");
+                    CloseWindow(); // This will close the Raylib window
+                } else if (quitDialog.isCancelled()) {
+                    // User cancelled quit
+                    state = TitleState.MAINMENU; // Return to main menu
+                    quitDialog.hide(); // Ensure dialog is hidden
+                }
+                break;
+                
             case TitleState.GAMEMENU:
-                // If menu gadgets are still moving on screen, wait.
-                if (menuGadgetsMovingOn) {
+                // Update portal rotation (counter-clockwise)
+                portalRotation -= 30.0f * dt; // Rotate 30 degrees per second counter-clockwise
+                if (portalRotation < 0.0f) {
+                    portalRotation += 360.0f; // Keep rotation in 0-360 range
+                }
+                
+                // Always update portal target color, default to dim white when no button is hovered
+                if (!classicButtonHovered && !actionButtonHovered && !endlessButtonHovered && !puzzleButtonHovered) {
+                    portalTargetColor = Color(200, 200, 200, 200); // Dim white, always visible
+                }
+                
+                // Smoothly interpolate portal color towards target color
+                float colorLerpFactor = portalColorFadeSpeed * dt;
+                if (colorLerpFactor > 1.0f) colorLerpFactor = 1.0f; // Clamp to prevent overshooting
+                
+                portalColor.r = cast(ubyte)(portalColor.r + (portalTargetColor.r - portalColor.r) * colorLerpFactor);
+                portalColor.g = cast(ubyte)(portalColor.g + (portalTargetColor.g - portalColor.g) * colorLerpFactor);
+                portalColor.b = cast(ubyte)(portalColor.b + (portalTargetColor.b - portalColor.b) * colorLerpFactor);
+                portalColor.a = cast(ubyte)(portalColor.a + (portalTargetColor.a - portalColor.a) * colorLerpFactor);
+                
+                // Center text animation logic
+                // Determine which text piece should be shown and set targets
+                int desiredTextPiece = -1;
+                float desiredAlpha = 0.0f;
+                float desiredScaleX = 1.0f;
+                
+                if (classicButtonHovered || actionButtonHovered || endlessButtonHovered || puzzleButtonHovered) {
+                    // A button is hovered, show the corresponding text
+                    if (classicButtonHovered) desiredTextPiece = 0;
+                    else if (actionButtonHovered) desiredTextPiece = 1;
+                    else if (puzzleButtonHovered) desiredTextPiece = 2;
+                    else if (endlessButtonHovered) desiredTextPiece = 3;
+                    
+                    desiredAlpha = 1.0f; // Fully visible
+                    desiredScaleX = 1.0f; // Normal width when stable
+                    
+                    // Check if we're switching to a new text piece
+                    if (currentCenterTextPiece != desiredTextPiece) {
+                        currentCenterTextPiece = desiredTextPiece;
+                        // Start with 2x width stretch effect when switching
+                        centerTextScaleX = 2.0f;
+                        centerTextAnimAlpha = 0.0f; // Start invisible for fade-in (use renamed variable)
+                    }
+                } else {
+                    // No button hovered, hide text
+                    desiredAlpha = 0.0f;
+                    desiredScaleX = 1.0f;
+                    if (centerTextAnimAlpha <= 0.1f) {
+                        currentCenterTextPiece = -1; // Clear current piece when fully faded out
+                    }
+                }
+                
+                // Smoothly animate center text properties
+                float textAnimLerpFactor = centerTextAnimationSpeed * dt;
+                if (textAnimLerpFactor > 1.0f) textAnimLerpFactor = 1.0f;
+                
+                // Animate scale (with stretch effect)
+                centerTextScaleX += (desiredScaleX - centerTextScaleX) * textAnimLerpFactor;
+                
+                // Animate alpha (fade in/out)
+                centerTextAnimAlpha += (desiredAlpha - centerTextAnimAlpha) * textAnimLerpFactor;
+                
+                // Update wave animation time
+                centerTextWaveTime += dt * centerTextWaveFrequency;
+                
+                // Update last-played mode glow pulse (subtle breathing effect)
+                lastPlayedGlowPulse += dt * 1.5f; // Slow pulse speed
+                
+                // Update orb strobing animation (only when most recent mode is highlighted)
+                bool shouldStrobe = false;
+                if (data.getMostRecentGameMode() == 0 && classicButtonHovered) shouldStrobe = true;
+                else if (data.getMostRecentGameMode() == 1 && actionButtonHovered) shouldStrobe = true;
+                else if (data.getMostRecentGameMode() == 2 && endlessButtonHovered) shouldStrobe = true;
+                else if (data.getMostRecentGameMode() == 3 && puzzleButtonHovered) shouldStrobe = true;
+                
+                if (shouldStrobe) {
+                    orbStrobeTimer += dt;
+                    
+                    // Calculate strobing sequence: pairs (1&6) -> (2&5) -> (3&4) -> wait -> repeat
+                    float totalCycleDuration = (orbStrobeDuration * 3) + orbStrobeWaitDuration; // 3 pairs + wait
+                    float cyclePosition = fmod(orbStrobeTimer, totalCycleDuration);
+                    
+                    if (cyclePosition < orbStrobeDuration) {
+                        // First pair: orbs 1 & 6 (indices 0 & 5)
+                        currentStrobeOrb = 0; // This will be used to indicate pair 1
+                        float pairProgress = cyclePosition / orbStrobeDuration;
+                        // Longer fade-out by using a different curve
+                        if (pairProgress <= 0.3f) {
+                            // Quick fade-in (30% of duration)
+                            orbStrobeAlpha = (pairProgress / 0.3f) * 0.9f;
+                        } else {
+                            // Slow fade-out (70% of duration)
+                            float fadeOutProgress = (pairProgress - 0.3f) / 0.7f;
+                            orbStrobeAlpha = (1.0f - fadeOutProgress) * 0.9f;
+                        }
+                    } else if (cyclePosition < orbStrobeDuration * 2) {
+                        // Second pair: orbs 2 & 5 (indices 1 & 4)
+                        currentStrobeOrb = 1; // This will be used to indicate pair 2
+                        float pairProgress = (cyclePosition - orbStrobeDuration) / orbStrobeDuration;
+                        if (pairProgress <= 0.3f) {
+                            orbStrobeAlpha = (pairProgress / 0.3f) * 0.9f;
+                        } else {
+                            float fadeOutProgress = (pairProgress - 0.3f) / 0.7f;
+                            orbStrobeAlpha = (1.0f - fadeOutProgress) * 0.9f;
+                        }
+                    } else if (cyclePosition < orbStrobeDuration * 3) {
+                        // Third pair: orbs 3 & 4 (indices 2 & 3)
+                        currentStrobeOrb = 2; // This will be used to indicate pair 3
+                        float pairProgress = (cyclePosition - orbStrobeDuration * 2) / orbStrobeDuration;
+                        if (pairProgress <= 0.3f) {
+                            orbStrobeAlpha = (pairProgress / 0.3f) * 0.9f;
+                        } else {
+                            float fadeOutProgress = (pairProgress - 0.3f) / 0.7f;
+                            orbStrobeAlpha = (1.0f - fadeOutProgress) * 0.9f;
+                        }
+                    } else {
+                        // Wait period
+                        currentStrobeOrb = -1;
+                        orbStrobeAlpha = 0.0f;
+                    }
+                } else {
+                    // Reset strobing when not highlighted
+                    orbStrobeTimer = 0.0f;
+                    currentStrobeOrb = -1;
+                    orbStrobeAlpha = 0.0f;
+                }
+                
+                // Update target values
+                centerTextTargetScaleX = desiredScaleX;
+                centerTextTargetAlpha = desiredAlpha;
+                
+                // If menu gadgets are still moving on screen or moving off screen, wait.
+                if (menuGadgetsMovingOn || menuGadgetsMovingOff) {
                     // Waiting for menu gadgets animation to complete
                 } else {
                     // Menu gadgets (Classic, Action, etc.) interaction logic:
@@ -1342,36 +1781,44 @@ class TitleScreen : IScreen {
                     toggleModesButtonHovered = false;
                     returnToMenuButtonHovered = false;
                     
-                    // Calculate button collision rectangles
-                    float buttonWidth = classicTexture.width * menuButtonScale;
-                    float buttonHeight = classicTexture.height * menuButtonScale;
+                    // Calculate button positions to match the glow effect positions
+                    float menuWidth = menuGadgetsTexture.width * menuGadgetsScale;
+                    float menuHeight = 628 * menuGadgetsScale; // Use cropped height
                     
-                    // Create hitboxes for the four main game mode buttons
+                    float leftX = menuGadgetsPosition.x + menuWidth * 0.255f; 
+                    float rightX = menuGadgetsPosition.x + menuWidth * 0.745f; 
+                    float topY = menuGadgetsPosition.y + menuHeight * 0.272f;
+                    float bottomY = menuGadgetsPosition.y + menuHeight * 0.81f;
+                    
+                    // Create hitboxes based on the orbHover glow effect areas (makes it feel like clicking on the bubble)
+                    float glowWidth = orbHoverTexture.width;
+                    float glowHeight = orbHoverTexture.height;
+                    
                     Rectangle classicRect = Rectangle(
-                        classicButtonPosition.x - buttonWidth / 2.0f, 
-                        classicButtonPosition.y - buttonHeight / 2.0f,
-                        buttonWidth, buttonHeight
+                        (leftX + 3.0f) - glowWidth / 2.0f, 
+                        topY - glowHeight / 2.0f,
+                        glowWidth, glowHeight
                     );
                     Rectangle actionRect = Rectangle(
-                        actionButtonPosition.x - buttonWidth / 2.0f, 
-                        actionButtonPosition.y - buttonHeight / 2.0f,
-                        buttonWidth, buttonHeight
-                    );
-                    Rectangle endlessRect = Rectangle(
-                        endlessButtonPosition.x - buttonWidth / 2.0f, 
-                        endlessButtonPosition.y - buttonHeight / 2.0f,
-                        buttonWidth, buttonHeight
+                        rightX - glowWidth / 2.0f, 
+                        topY - glowHeight / 2.0f,
+                        glowWidth, glowHeight
                     );
                     Rectangle puzzleRect = Rectangle(
-                        puzzleButtonPosition.x - buttonWidth / 2.0f, 
-                        puzzleButtonPosition.y - buttonHeight / 2.0f,
-                        buttonWidth, buttonHeight
+                        (leftX + 3.0f) - glowWidth / 2.0f, 
+                        bottomY - glowHeight / 2.0f,
+                        glowWidth, glowHeight
+                    );
+                    Rectangle endlessRect = Rectangle(
+                        rightX - glowWidth / 2.0f, 
+                        bottomY - glowHeight / 2.0f,
+                        glowWidth, glowHeight
                     );
                     
                     // Create hitboxes for the bottom menu buttons
-                    float menuWidth = menuGadgetsTexture.width * menuGadgetsScale;
-                    float menuHeight = 628 * menuGadgetsScale;
-                    float buttonY = menuGadgetsPosition.y + menuHeight + 50.0f; // 30px below menu gadgets
+                    float buttonWidth = classicTexture.width * menuButtonScale;
+                    float buttonHeight = classicTexture.height * menuButtonScale;
+                    float buttonY = menuGadgetsPosition.y + menuHeight + 50.0f; // 50px below menu gadgets
                     
                     float leftButtonX = menuGadgetsPosition.x + menuWidth * 0.25f; // 25% from left
                     float rightButtonX = menuGadgetsPosition.x + menuWidth * 0.75f;
@@ -1453,6 +1900,25 @@ class TitleScreen : IScreen {
                     // Update the last hovered button
                     lastHoveredButton = currentHoveredButton;
                     
+                    // Update portal target color based on hovered button (using specified colors)
+                    switch (currentHoveredButton) {
+                        case 1: // Classic - Green
+                            portalTargetColor = Color(120, 255, 120, 255); // Bright green
+                            break;
+                        case 2: // Action - Red
+                            portalTargetColor = Color(255, 120, 120, 255); // Bright red
+                            break;
+                        case 3: // Endless - Blue
+                            portalTargetColor = Color(120, 120, 255, 255); // Bright blue
+                            break;
+                        case 4: // Puzzle - Yellow
+                            portalTargetColor = Color(255, 255, 120, 255); // Bright yellow
+                            break;
+                        default: // No button hovered - fade back to default
+                            portalTargetColor = Color(200, 200, 200, 200); // Dim white
+                            break;
+                    }
+                    
                     // Handle button clicks
                     if (IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT)) {
                         if (classicButtonHovered) {
@@ -1487,8 +1953,9 @@ class TitleScreen : IScreen {
                         }
                         else if (returnToMenuButtonHovered) {
                             PlaySound(mainMenuMouseClickSound);
-                            state = TitleState.MAINMENU;
-                            writeln("Return to Main Menu selected");
+                            // Set up animation to move menu gadgets off screen
+                            menuGadgetsMovingOff = true;
+                            writeln("Return to Main Menu selected - starting menu gadgets animation");
                         }
                         else {
                             // Generic click for other areas
@@ -1561,6 +2028,48 @@ class TitleScreen : IScreen {
         }
     }
 
+    // Method to emit a comet particle
+    void emitCometParticle() {
+        // Safety check: ensure cometSteams array is valid
+        if (cometSteams is null || cometSteams.length == 0) {
+            debugLog("Warning: cometSteams array is null or empty");
+            return;
+        }
+        
+        // Find the next available particle in the pool
+        for (int attempts = 0; attempts < cometSteams.length; attempts++) {
+            int index = cast(int)((nextCometSteamIndex + attempts) % cometSteams.length);
+            if (index >= 0 && index < cometSteams.length && !cometSteams[index].active) {
+                // Initialize the particle at the tail end of the comet
+                // Calculate the rear position based on comet's direction and texture size
+                float cometTailOffsetX = -cometDirection.x * (cometTexture.width); // Half texture width behind
+                float cometTailOffsetY = -cometDirection.y * (cometTexture.height); // Half texture height behind
+                
+                Vector2 particlePos = Vector2(
+                    cometPosition.x + cometTailOffsetX + uniform(-2.0f, 2.0f), // Position at tail with small randomness
+                    cometPosition.y + cometTailOffsetY + uniform(-1.0f, 1.0f)
+                );
+                
+                cometSteams[index].position = particlePos;
+                // Use comet's opposite direction with some randomness for more linear trail
+                float baseVelX = -cometDirection.x * uniform(80.0f, 120.0f); // Opposite to comet direction
+                float baseVelY = -cometDirection.y * uniform(80.0f, 120.0f); // Opposite to comet direction
+                cometSteams[index].velocityX = baseVelX + uniform(-20.0f, 20.0f); // Small random variation
+                cometSteams[index].velocityY = baseVelY + uniform(-20.0f, 20.0f); // Small random variation
+                cometSteams[index].color = Color(255, 255, 255, 255); // White particles
+                cometSteams[index].alpha = 1.0f;
+                cometSteams[index].lifetime = uniform(0.8f, 1.2f); // Longer lifetime for longer trail
+                cometSteams[index].timer = 0.0f;
+                cometSteams[index].active = true;
+                cometSteams[index].scale = uniform(0.1f, 0.3f); // Smaller random initial scale
+                cometSteams[index].rotation = 0.0f; // No rotation
+                
+                nextCometSteamIndex = cast(int)((index + 1) % cometSteams.length);
+                break;
+            }
+        }
+    }
+
     void draw() {
         // Draw sparkle on top of a random star
         if (sparkleActive && sparkleStarIndex >= 0 && sparkleStarIndex < stars.length && sparkleFrameTextures.length > 0) {
@@ -1615,6 +2124,45 @@ class TitleScreen : IScreen {
                 );
             }
         }
+
+        // Draw comet trail particles (continue drawing even after comet animation ends)
+        if (cometSteams !is null) {
+            BeginBlendMode(BlendMode.BLEND_ADDITIVE); // Use additive blending for bright particles
+            for (int i = 0; i < cometSteams.length; i++) {
+                if (cometSteams[i].active && cometSteams[i].alpha > 0.0f) {
+                    // Calculate particle color with alpha
+                    Color particleColor = Color(
+                        cometSteams[i].color.r,
+                        cometSteams[i].color.g,
+                        cometSteams[i].color.b,
+                        cast(ubyte)(cometSteams[i].alpha * 255)
+                    );
+                    
+                    // Draw particle with scale but no rotation
+                    Rectangle sourceRec = Rectangle(0, 0, cometTexture.width, cometTexture.height);
+                    Rectangle destRec = Rectangle(
+                        cometSteams[i].position.x,
+                        cometSteams[i].position.y,
+                        cometTexture.width * cometSteams[i].scale,
+                        cometTexture.height * cometSteams[i].scale
+                    );
+                    Vector2 origin = Vector2(
+                        (cometTexture.width * cometSteams[i].scale) / 2.0f,
+                        (cometTexture.height * cometSteams[i].scale) / 2.0f
+                    );
+                    
+                    DrawTexturePro(cometTexture, sourceRec, destRec, origin, 0.0f, particleColor); // No rotation
+                }
+            }
+            EndBlendMode();
+        }
+
+        // Draw the main comet if it's active (DISABLED - only showing particle trail)
+        // if (cometActive) {
+        //     BeginBlendMode(BlendMode.BLEND_ADDITIVE); // Use additive blending for bright comet
+        //     DrawTextureEx(cometTexture, cometPosition, 0.0f, 1.0f, Colors.WHITE);
+        //     EndBlendMode();
+        // }
 
         // Draw logo (only if not moving off or if still on screen)
         if (logoAnimationStarted && logoPosition.y < VIRTUAL_SCREEN_HEIGHT) { // Changed
@@ -1774,8 +2322,13 @@ class TitleScreen : IScreen {
             buttonTexture.height * buttonScale.y
         );
 
-        // Draw menu gadgets if they are on screen or moving
-        if (state == TitleState.GAMEMENU && (menuGadgetsOnScreen() || menuGadgetsMovingOn)) {
+        // Draw menu gadgets if they are visible on screen (regardless of state)
+        // Check if menu gadgets are at least partially visible on screen
+        float menuGadgetsHeight = 628 * menuGadgetsScale; // Use cropped height
+        bool menuGadgetsVisible = (menuGadgetsPosition.y < VIRTUAL_SCREEN_HEIGHT && 
+                                   menuGadgetsPosition.y + menuGadgetsHeight > 0);
+        
+        if (menuGadgetsVisible) {
             // Draw the menu gadgets (main frame) at correct scale and position
             Rectangle srcRec = Rectangle(0, 0, menuGadgetsTexture.width, 628); // Crop at 628px height
             Rectangle dstRec = Rectangle(
@@ -1786,10 +2339,44 @@ class TitleScreen : IScreen {
             );
             DrawTexturePro(menuGadgetsTexture, srcRec, dstRec, Vector2(0, 0), 0.0f, Colors.WHITE);
 
-            // Calculate button positions relative to menu gadgets frame
+            // Draw portal effects in the center of the menu gadgets
             float menuWidth = menuGadgetsTexture.width * menuGadgetsScale;
             float menuHeight = 628 * menuGadgetsScale; // Use cropped height
             
+            // Better center calculation - use the center of the large circular area
+            Vector2 portalCenter = Vector2(
+                centerX, // Use screen center X
+                menuGadgetsPosition.y + (menuHeight * 0.55f) // Adjust Y to center of the large circle
+            );
+            
+            // Draw center glow (static)
+            BeginBlendMode(BlendMode.BLEND_ADDITIVE);
+            Vector2 centerGlowPos = Vector2(
+                portalCenter.x - portalCenterGlowTexture.width / 2.0f,
+                portalCenter.y - portalCenterGlowTexture.height / 2.0f
+            );
+            DrawTextureEx(portalCenterGlowTexture, centerGlowPos, 0.0f, 1.0f, portalColor);
+            
+            // Draw rotating moon select (counter-clockwise, 3x bigger, more transparent)
+            float moonScale = 3.0f; // Make moon swirl 3 times bigger
+            Color transparentPortalColor = Color(
+                portalColor.r, 
+                portalColor.g, 
+                portalColor.b, 
+                cast(ubyte)(portalColor.a * 0.3f) // Make much more transparent (30% opacity)
+            );
+            Vector2 moonOrigin = Vector2(portalMoonSelectTexture.width / 2.0f, portalMoonSelectTexture.height / 2.0f);
+            DrawTexturePro(
+                portalMoonSelectTexture,
+                Rectangle(0, 0, portalMoonSelectTexture.width, portalMoonSelectTexture.height),
+                Rectangle(portalCenter.x, portalCenter.y, portalMoonSelectTexture.width * moonScale, portalMoonSelectTexture.height * moonScale),
+                Vector2(moonOrigin.x * moonScale, moonOrigin.y * moonScale), // Scale the origin too
+                portalRotation,
+                transparentPortalColor
+            );
+            EndBlendMode();
+
+            // Calculate button positions relative to menu gadgets frame
             float leftX = menuGadgetsPosition.x + menuWidth * 0.255f; 
             float rightX = menuGadgetsPosition.x + menuWidth * 0.745f; 
             float topY = menuGadgetsPosition.y + menuHeight * 0.272f;
@@ -1893,13 +2480,111 @@ class TitleScreen : IScreen {
             float welcomeTextX = menuGadgetsPosition.x + (menuGadgetsTexture.width * menuGadgetsScale) / 2.0f - MeasureTextEx(app.fontFamily[2], welcomeText.toStringz(), welcomeTextFontSize, 1.0f).x / 2.0f;
             DrawTextEx(app.fontFamily[2], welcomeText.toStringz(), Vector2(welcomeTextX, welcomeTextY), welcomeTextFontSize, 1.0f, Colors.WHITE);
 
-            // Draw the select game mode text at the top of the menu gadgets
+            // Always draw the "Select a game mode" text at the top
             float selectTextFontSize = 18.0f;
             float selectTextY = menuGadgetsPosition.y + 76.0f;
             float selectTextX = menuGadgetsPosition.x + (menuGadgetsTexture.width * menuGadgetsScale) / 2.0f - MeasureTextEx(app.fontFamily[0], selectGameModeText.toStringz(), selectTextFontSize, 1.0f).x / 2.0f;
             DrawTextEx(app.fontFamily[0], selectGameModeText.toStringz(), Vector2(selectTextX, selectTextY), selectTextFontSize, 1.0f, Colors.WHITE);
+
+            // Draw animated center text IN THE PORTAL with wave effect (texture divided into 4 pieces)
+            if (currentCenterTextPiece >= 0 && centerTextAnimAlpha > 0.01f) {
+                // Calculate source rectangle (divide texture into 4 horizontal strips)
+                float pieceHeight = centerTextTexture.height / 4.0f;
+                
+                // Position the center text IN THE CENTER OF THE PORTAL with animations
+                float baseScale = 0.4f; // Base scale to fit in the portal
+                float animatedScaleX = baseScale * centerTextScaleX; // Apply horizontal stretching
+                float animatedScaleY = baseScale; // Keep Y scale constant
+                
+                float scaledWidth = centerTextTexture.width * animatedScaleX;
+                float scaledHeight = pieceHeight * animatedScaleY;
+                
+                // Use the existing portalCenter variable (already calculated above)
+                float baseCenterTextX = portalCenter.x - scaledWidth / 2.0f;
+                float baseCenterTextY = portalCenter.y - scaledHeight / 2.0f;
+                
+                // Create color with animated alpha for fade effect
+                Color animatedColor = Color(
+                    255, 255, 255, 
+                    cast(ubyte)(255 * centerTextAnimAlpha) // Use renamed variable
+                );
+                
+                // WAVE EFFECT: Draw the text in horizontal strips with sine wave offsets
+                int waveStrips = 12; // Reduced strips for more subtle effect and better performance
+                float stripHeight = scaledHeight / waveStrips;
+                float sourceStripHeight = pieceHeight / waveStrips;
+                
+                for (int i = 0; i < waveStrips; i++) {
+                    // Calculate wave offset for this strip
+                    float normalizedY = cast(float)i / waveStrips; // 0 to 1
+                    float waveOffset = sin(centerTextWaveTime + normalizedY * centerTextWaveLength * raylib.PI * 2) * centerTextWaveAmplitude;
+                    
+                    // Source rectangle for this strip
+                    Rectangle sourceRect = Rectangle(
+                        0, 
+                        currentCenterTextPiece * pieceHeight + i * sourceStripHeight, 
+                        centerTextTexture.width, 
+                        sourceStripHeight
+                    );
+                    
+                    // Destination rectangle for this strip (with wave offset)
+                    Rectangle destRect = Rectangle(
+                        baseCenterTextX + waveOffset, // Apply horizontal wave offset
+                        baseCenterTextY + i * stripHeight,
+                        scaledWidth,
+                        stripHeight
+                    );
+                    
+                    // Draw this strip
+                    DrawTexturePro(
+                        centerTextTexture,
+                        sourceRect,
+                        destRect,
+                        Vector2(0, 0),
+                        0.0f,
+                        animatedColor
+                    );
+                }
+            }
         
-               BeginBlendMode(BlendMode.BLEND_ALPHA); // Enable alpha blending
+               // Draw last-played mode indicator with additive blending for glow effect
+               BeginBlendMode(BlendMode.BLEND_ADDITIVE); // Use additive blending for glow
+               
+                float pulseAlpha = lastPlayedGlowAlpha + sin(lastPlayedGlowPulse) * 0.2f; // Subtle breathing effect
+                if (pulseAlpha < 0.2f) pulseAlpha = 0.2f; // Minimum visibility
+                if (pulseAlpha > 0.8f) pulseAlpha = 0.8f; // Maximum brightness
+                
+                Color lastPlayedGlowColor = Color(220, 255, 220, cast(ubyte)(255 * pulseAlpha)); // Much whiter with subtle green tint
+                
+                int currentLastPlayedMode = data.getMostRecentGameMode(); // 0=classic, 1=action, 2=endless, 3=puzzle
+                if (currentLastPlayedMode == 0) { // Classic
+                    Vector2 glowPos = Vector2(
+                        leftX + 3.0f - (orbGlowTexture.width / 2.0f),
+                        topY - (orbGlowTexture.height / 2.0f)
+                    );
+                    DrawTextureEx(orbGlowTexture, glowPos, 0.0f, 1.05f, lastPlayedGlowColor); // Smaller scale to fit better
+                } else if (currentLastPlayedMode == 1) { // Action
+                    Vector2 glowPos = Vector2(
+                        rightX - (orbGlowTexture.width / 2.0f),
+                        topY - (orbGlowTexture.height / 2.0f)
+                    );
+                    DrawTextureEx(orbGlowTexture, glowPos, 0.0f, 1.05f, lastPlayedGlowColor);
+                } else if (currentLastPlayedMode == 3) { // Puzzle
+                    Vector2 glowPos = Vector2(
+                        leftX + 3.0f - (orbGlowTexture.width / 2.0f),
+                        bottomY - (orbGlowTexture.height / 2.0f)
+                    );
+                    DrawTextureEx(orbGlowTexture, glowPos, 0.0f, 1.05f, lastPlayedGlowColor);
+                } else if (currentLastPlayedMode == 2) { // Endless
+                    Vector2 glowPos = Vector2(
+                        rightX - (orbGlowTexture.width / 2.0f),
+                        bottomY - (orbGlowTexture.height / 2.0f)
+                    );
+                    DrawTextureEx(orbGlowTexture, glowPos, 0.0f, 1.05f, lastPlayedGlowColor);
+                }
+                
+               EndBlendMode(); // End additive blending for last-played glow
+               BeginBlendMode(BlendMode.BLEND_ALPHA); // Resume alpha blending for other effects
     
                 if (classicButtonHovered) {
                     Vector2 hoverPos = Vector2(
@@ -1931,6 +2616,87 @@ class TitleScreen : IScreen {
                 }
     
                 EndBlendMode(); // Disable alpha blending
+                
+                // Draw extra glow effects with lime color and additive blending
+                BeginBlendMode(BlendMode.BLEND_ADDITIVE); // Enable additive blending for bright glow
+                
+                if (classicButtonHovered) {
+                    Vector2 glowPos = Vector2(
+                        leftX + 3.0f - (orbGlowTexture.width / 2.0f), // Center the glow texture
+                        topY - (orbGlowTexture.height / 2.0f)
+                    );
+                    DrawTextureEx(orbGlowTexture, glowPos, 0.0f, 1.0f, Color(50, 255, 50, 210)); // Lime green glow
+                }
+                if (actionButtonHovered) {
+                    Vector2 glowPos = Vector2(
+                        rightX - (orbGlowTexture.width / 2.0f),
+                        topY - (orbGlowTexture.height / 2.0f)
+                    );
+                    DrawTextureEx(orbGlowTexture, glowPos, 0.0f, 1.0f, Color(255, 60, 60, 200)); // More red glow
+                }
+                if (puzzleButtonHovered) {
+                    Vector2 glowPos = Vector2(
+                        leftX + 3.0f - (orbGlowTexture.width / 2.0f),
+                        bottomY - (orbGlowTexture.height / 2.0f)
+                    );
+                    DrawTextureEx(orbGlowTexture, glowPos, 0.0f, 1.0f, Color(255, 255, 80, 180)); // More yellow glow
+                }
+                if (endlessButtonHovered) {
+                    Vector2 glowPos = Vector2(
+                        rightX - (orbGlowTexture.width / 2.0f),
+                        bottomY - (orbGlowTexture.height / 2.0f)
+                    );
+                    DrawTextureEx(orbGlowTexture, glowPos, 0.0f, 1.0f, Color(80, 180, 255, 210)); // More blue glow
+                }
+                
+                // Draw strobing orbs for most recently played mode indicator (6 horizontal dark purple orb positions)
+                if (currentStrobeOrb >= 0 && orbStrobeAlpha > 0.01f) {
+                    // Calculate the 6 orb positions horizontally across the menu gadgets width
+                    // Use existing menuWidth variable (already declared above)
+                    float baseY = menuGadgetsPosition.y + (menuHeight * 0.545f); // Y position at 54.5% height of menu gadgets
+
+                    // Define the 6 horizontal positions as percentages of menu width
+                    float[6] orbXPercentages = [0.17f, 0.255f, 0.32f, 0.68f, 0.745f, 0.84f];
+
+                    // Define variable sizes for each orb: outer orbs larger, inner orbs smaller
+                    float[6] orbScales = [1.4f, 1.0f, 0.6f, 0.6f, 1.0f, 1.4f]; // orbs 1&6=1.4x, 2&5=1.0x, 3&4=0.6x
+
+                    // Determine which orbs to light up based on current pair
+                    int[] orbIndices;
+                    if (currentStrobeOrb == 0) {
+                        // Pair 1: orbs 1 & 6 (indices 0 & 5)
+                        orbIndices = [0, 5];
+                    } else if (currentStrobeOrb == 1) {
+                        // Pair 2: orbs 2 & 5 (indices 1 & 4)
+                        orbIndices = [1, 4];
+                    } else if (currentStrobeOrb == 2) {
+                        // Pair 3: orbs 3 & 4 (indices 2 & 3)
+                        orbIndices = [2, 3];
+                    }
+                    
+                    // Create lime green color with animated alpha
+                    Color strobeColor = Color(
+                        124, 252, 0, // Lime green (RGB)
+                        cast(ubyte)(255 * orbStrobeAlpha)
+                    );
+                    
+                    // Draw both orbs in the current pair
+                    foreach (int orbIndex; orbIndices) {
+                        float orbX = menuGadgetsPosition.x + (menuWidth * orbXPercentages[orbIndex]);
+                        float orbY = baseY;
+                        float orbScale = orbScales[orbIndex]; // Get scale for this specific orb
+                        
+                        // Draw the strobing orb at the current position with variable size
+                        Vector2 strobePos = Vector2(
+                            orbX - (orbStrobeTexture.width * orbScale) / 2.0f,
+                            orbY - (orbStrobeTexture.height * orbScale) / 2.0f
+                        );
+                        
+                        DrawTextureEx(orbStrobeTexture, strobePos, 0.0f, orbScale, strobeColor); // Use variable scale
+                    }
+                }
+                
+                EndBlendMode(); // Disable additive blending
         }
         
         // Draw the game menu buttons
@@ -2056,14 +2822,14 @@ class TitleScreen : IScreen {
                     }
 
                     // Draw Text (centered on the button)
-                    Vector2 textSize = MeasureTextEx(app.fontFamily[1], mainMenuButtonLabels[i].toStringz(), mainMenuButtonFontSize, 1.0f);
+                    Vector2 textSize = MeasureTextEx(app.fontFamily[2], mainMenuButtonLabels[i].toStringz(), mainMenuButtonFontSize, 1.0f);
                     float textX = mainMenuButtonCurrentX + (mainMenuButtonTexture.width - textSize.x) / 2.0f;
                     float textY = buttonY + (mainMenuButtonTexture.height - textSize.y) * (2.0f / 3.0f); // Adjusted to center vertically
 
-                    DrawTextEx(app.fontFamily[1], mainMenuButtonLabels[i].toStringz(), Vector2(textX, textY), mainMenuButtonFontSize, 1.0f, Colors.WHITE);
+                    DrawTextEx(app.fontFamily[2], mainMenuButtonLabels[i].toStringz(), Vector2(textX, textY), mainMenuButtonFontSize, 1.0f, Colors.WHITE);
                     // Make blue outline for text
                     BeginBlendMode(BlendMode.BLEND_ADDITIVE);
-                    DrawTextEx(app.fontFamily[1], mainMenuButtonLabels[i].toStringz(), Vector2(textX + 1, textY + 1), mainMenuButtonFontSize, 1.0f, Colors.BLUE);
+                    DrawTextEx(app.fontFamily[2], mainMenuButtonLabels[i].toStringz(), Vector2(textX + 1, textY + 1), mainMenuButtonFontSize, 1.0f, Colors.BLUE);
                     EndBlendMode();
                 }
             } else { // Fallback to drawing text only if texture failed (matches old behavior)
@@ -2073,7 +2839,7 @@ class TitleScreen : IScreen {
                     float buttonY = mainMenuButtonTopY + i * textBasedSpacingY; // mainMenuButtonTopY would be text-based from init fallback
                     
                     Color textColor = mainMenuButtonHoverStates[i] ? Colors.YELLOW : Colors.WHITE;
-                    DrawTextEx(app.fontFamily[1], mainMenuButtonLabels[i].toStringz(), Vector2(mainMenuButtonCurrentX, buttonY), mainMenuButtonFontSize, 1.0f, textColor);
+                    DrawTextEx(app.fontFamily[2], mainMenuButtonLabels[i].toStringz(), Vector2(mainMenuButtonCurrentX, buttonY), mainMenuButtonFontSize, 1.0f, textColor);
                 }
             }
         }
@@ -2134,6 +2900,11 @@ class TitleScreen : IScreen {
         if (state == TitleState.OPTIONS && optionsPopup !is null && optionsPopup.isActive()) {
             optionsPopup.draw();
         }
+        
+        // Draw the quit dialog if it is active
+        if (state == TitleState.QUIT && quitDialog !is null && quitDialog.isDialogActive()) {
+            quitDialog.draw();
+        }
     }
 
     void unload() {
@@ -2162,6 +2933,12 @@ class TitleScreen : IScreen {
         UnloadTexture(endlessAlpha);
         UnloadTexture(puzzleTexture);
         UnloadTexture(puzzleAlpha);
+        UnloadTexture(orbGlowTexture);
+        UnloadTexture(portalCenterGlowTexture);
+        UnloadTexture(portalMoonSelectTexture);
+        UnloadTexture(centerTextTexture);
+        UnloadTexture(centerTextAlpha);
+        UnloadTexture(orbStrobeTexture);
 
         // New: Unload Main Menu Button Textures
         UnloadTexture(mainMenuButtonTexture);

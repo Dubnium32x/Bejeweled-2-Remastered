@@ -12,6 +12,7 @@ import std.algorithm;
 
 import world.audio_settings;
 import world.memory_manager;
+import data; // Add import for accessing game options
 
 // ---- ENUMS ----
 enum AudioType {
@@ -36,6 +37,8 @@ class AudioManager {
     private Music currentMusic;
     private bool isMusicPlaying = false;
     private float currentMusicVolume = 1.0f; // Track current music volume
+    private int currentMusicStyle = 2; // 1 = Original, 2 = Arranged (default to Arranged)
+    private string currentBaseMusicPath = ""; // Store the base music path without style folder
     
     // For music fade effects
     private bool isFadingOut = false;
@@ -385,5 +388,75 @@ class AudioManager {
     float GetMusicVolume(Music music) {
         // We don't need to use the music parameter since we're tracking volume internally
         return currentMusicVolume;
+    }
+    
+    /**
+     * Set the music style and switch current music if needed
+     * 
+     * Params:
+     *   style = 1 for Original, 2 for Arranged
+     */
+    void setMusicStyle(int style) {
+        if (style != 1 && style != 2) {
+            writeln("Invalid music style: ", style, ". Must be 1 (Original) or 2 (Arranged)");
+            return;
+        }
+        
+        if (currentMusicStyle == style) {
+            return; // No change needed
+        }
+        
+        writeln("Changing music style from ", currentMusicStyle, " to ", style);
+        writeln("Current base music path: '", currentBaseMusicPath, "'");
+        writeln("Is music playing: ", isMusicPlaying);
+        currentMusicStyle = style;
+        
+        // If music is currently playing, switch to the new style
+        if (isMusicPlaying && currentBaseMusicPath != "") {
+            string styleFolderName = (style == 1) ? "original" : "arranged";
+            string newMusicPath = "resources/audio/music/" ~ styleFolderName ~ "/" ~ currentBaseMusicPath;
+            
+            writeln("Switching music to: ", newMusicPath);
+            playMusic(newMusicPath, currentMusicVolume, true);
+        } else {
+            writeln("Not switching music - either not playing or no base path set");
+        }
+    }
+    
+    /**
+     * Enhanced playMusic that handles music style automatically
+     * 
+     * Params:
+     *   baseFilePath = The filename (e.g., "Main Theme - Bejeweled 2.ogg")
+     *   volume = Optional volume override
+     *   loop = Whether to loop the music
+     */
+    bool playMusicWithStyle(string baseFilePath, float volume = -1.0f, bool loop = true) {
+        currentBaseMusicPath = baseFilePath;
+        string styleFolderName = (currentMusicStyle == 1) ? "original" : "arranged";
+        string fullPath = "resources/audio/music/" ~ styleFolderName ~ "/" ~ baseFilePath;
+        
+        writeln("Playing music with style ", currentMusicStyle, ": ", fullPath);
+        return playMusic(fullPath, volume, loop);
+    }
+    
+    /**
+     * Start fading out the current music with style-aware next music
+     * 
+     * Params:
+     *   duration = Fade-out duration in seconds
+     *   nextMusicBasePath = Base filename for next music (e.g., "Main Theme - Bejeweled 2.ogg")
+     *   nextMusicVolume = Volume for the next music (optional)
+     *   nextMusicLoop = Whether to loop the next music (optional)
+     */
+    void fadeOutMusicWithStyle(float duration, string nextMusicBasePath = "", float nextMusicVolume = -1.0f, bool nextMusicLoop = true) {
+        if (nextMusicBasePath != "") {
+            // Convert base path to full path with current style
+            string styleFolderName = (currentMusicStyle == 1) ? "original" : "arranged";
+            string fullPath = "resources/audio/music/" ~ styleFolderName ~ "/" ~ nextMusicBasePath;
+            fadeOutMusic(duration, fullPath, nextMusicVolume, nextMusicLoop);
+        } else {
+            fadeOutMusic(duration, "", nextMusicVolume, nextMusicLoop);
+        }
     }
 }

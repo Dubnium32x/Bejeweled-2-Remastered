@@ -75,6 +75,8 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
     private Rectangle resolutionRightArrowRect;
     private Rectangle gemStyleLeftArrowRect;
     private Rectangle gemStyleRightArrowRect;
+    private Rectangle musicStyleLeftArrowRect;
+    private Rectangle musicStyleRightArrowRect;
     private Rectangle systemModeLeftArrowRect;
     private Rectangle systemModeRightArrowRect;
 
@@ -98,6 +100,9 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
     private bool isDraggingEffectsSlider = false;
     private float sliderWidth = 200.0f;
     private float sliderHeight = 20.0f;
+
+    // Track music style changes
+    private int originalMusicStyle = -1; // Store the music style when options menu is opened
 
     public this() {
         memoryManager = MemoryManager.instance(); // Corrected: use instance()
@@ -187,9 +192,11 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
 
     public void show() {
         _isActive = true;
+        // Store the original music style when opening options
+        originalMusicStyle = currentOptions.musicStyle;
         // Don't reload and apply settings when showing to avoid screen flashes
         // loadOptionsFromFile(); // Commented out to prevent reload and potential screen flashing
-        writeln("OptionsScreen shown");
+        writeln("OptionsScreen shown, original music style: ", originalMusicStyle);
     }
 
     public void hide() {
@@ -201,7 +208,23 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
         // to prevent screen flashing
         applySettings(false); 
         
+        // Check if music style changed and restart main menu music if it did
+        if (originalMusicStyle != -1 && originalMusicStyle != currentOptions.musicStyle) {
+            writeln("Music style changed from ", originalMusicStyle, " to ", currentOptions.musicStyle, " - restarting main menu music");
+            if (audioManager !is null) {
+                // Set the new music style in the audio manager
+                audioManager.setMusicStyle(currentOptions.musicStyle);
+                // Restart the main menu music with the new style
+                audioManager.playMusicWithStyle("Main Theme - Bejeweled 2.ogg", -1.0f, true);
+            }
+        }
+        
         writeln("OptionsScreen hidden");
+    }
+
+    // Public getter for current music style
+    public int getCurrentMusicStyle() {
+        return currentOptions.musicStyle;
     }
 
     // Public method to check for and apply pending resolution changes at game startup
@@ -439,6 +462,20 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
                 yPosForMuteClickCheck += 20; // "Press 2: Adjust Music Volume (+/-)"
                 yPosForMuteClickCheck += 20; // "Press 3: Adjust SFX Volume (+/-)"
                 yPosForMuteClickCheck += 40; // "Hold Shift + Number: Decrease Volume" and spacing after
+                yPosForMuteClickCheck += 40; // Music Style and spacing after
+
+                // Music Style Arrows - positioned right before the mute toggle
+                float musicStyleYPos = yPosForMuteClickCheck - 40; // Music Style is 40 pixels above mute toggle
+                if (CheckCollisionPointRec(mousePos, musicStyleLeftArrowRect)) {
+                    currentOptions.musicStyle = (currentOptions.musicStyle == 1) ? 2 : 1; // Toggle between 1 (Original) and 2 (Arranged)
+                    applyGameplaySettings();
+                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX);
+                }
+                if (CheckCollisionPointRec(mousePos, musicStyleRightArrowRect)) {
+                    currentOptions.musicStyle = (currentOptions.musicStyle == 1) ? 2 : 1; // Toggle between 1 (Original) and 2 (Arranged)
+                    applyGameplaySettings();
+                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX);
+                }
 
                 // Define the clickable rectangle for the mute toggle using the corrected Y position
                 // Note: optionsContentX + optionsContentWidth / 2 should be equivalent to interactableXPos used in draw
@@ -689,6 +726,21 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
                 DrawTextEx(app.fontFamily[2], "Hold Shift + Number: Decrease Volume".toStringz(), Vector2(labelXPos + 20, yPos), 18, 1, Colors.LIGHTGRAY);
                 yPos += 40;
 
+                DrawTextEx(app.fontFamily[1], "Music Style:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
+                string musicStyleStr = (currentOptions.musicStyle == 1) ? "Original" : "Arranged";
+                if (currentOptions.musicStyle != 1 && currentOptions.musicStyle != 2) currentOptions.musicStyle = 2; // Default to Arranged if invalid
+
+                float musicStyleTextX = interactableXPos - (MeasureTextEx(app.fontFamily[2], musicStyleStr.toStringz(), 24, 1).x / 2); // Center the text
+                musicStyleLeftArrowRect = Rectangle(musicStyleTextX - arrowButtonWidth - arrowSpacing, yPos, arrowButtonWidth, arrowButtonHeight);
+                musicStyleRightArrowRect = Rectangle(musicStyleTextX + MeasureTextEx(app.fontFamily[2], musicStyleStr.toStringz(), 24, 1).x + arrowSpacing, yPos, arrowButtonWidth, arrowButtonHeight);
+
+                DrawRectangleRec(musicStyleLeftArrowRect, Colors.DARKGRAY);
+                DrawTextEx(app.fontFamily[2], "<".toStringz(), Vector2(musicStyleLeftArrowRect.x + 10, musicStyleLeftArrowRect.y + 2), 24, 1, Colors.WHITE);
+                DrawTextEx(app.fontFamily[2], musicStyleStr.toStringz(), Vector2(musicStyleTextX, yPos + 2), 24, 1, Colors.YELLOW);
+                DrawRectangleRec(musicStyleRightArrowRect, Colors.DARKGRAY);
+                DrawTextEx(app.fontFamily[2], ">".toStringz(), Vector2(musicStyleRightArrowRect.x + 10, musicStyleRightArrowRect.y + 2), 24, 1, Colors.WHITE);
+                yPos += 40;
+
                 DrawTextEx(app.fontFamily[1], "Mute All:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
                 muteToggleRect = Rectangle(interactableXPos, yPos, 100, 24); // Assign to class member
                 DrawRectangleRec(muteToggleRect, currentOptions.mute ? Colors.LIME : Colors.MAROON);
@@ -823,7 +875,7 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
             currentOptions.randomBackdrops = true;
             currentOptions.gemStyle = 1; // Classic
             currentOptions.systemMode = 1; // Original
-            currentOptions.musicStyle = 1; // Default music style (e.g., Original)
+            currentOptions.musicStyle = 2; // Default music style to Arranged
             currentOptions.playerName = "Player"; // Default player name
             currentOptions.hasPendingResolutionChange = false; // Initialize the flag
             
@@ -880,7 +932,7 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
             currentOptions.randomBackdrops = getIniValue(gameplaySection, "random_backdrops", "true").to!bool;
             currentOptions.gemStyle = getIniValue(gameplaySection, "gem_style", "1").to!int;
             currentOptions.systemMode = getIniValue(gameplaySection, "system_mode", "1").to!int;
-            currentOptions.musicStyle = getIniValue(gameplaySection, "music_style", "1").to!int; // Load musicStyle
+            currentOptions.musicStyle = getIniValue(gameplaySection, "music_style", "2").to!int; // Load musicStyle, default to Arranged
 
             auto playerSection = parseIniSection(lines, "PlayerSettings"); // New section for player name
             currentOptions.playerName = getIniValue(playerSection, "player_name", "Player"); // Load playerName
@@ -907,7 +959,7 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
             currentOptions.masterVolume = 80;
             currentOptions.musicVolume = 70;
             currentOptions.sfxVolume = 75;
-            currentOptions.musicStyle = 1; // Default music style
+            currentOptions.musicStyle = 2; // Default music style to Arranged
             currentOptions.playerName = "Player"; // Default player name
             
             // Update data module with default player name on error
@@ -1042,8 +1094,11 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
         // Apply Gem Style - Assuming a similar mechanism to System Mode or a direct setting
         // Example: data.setGemStyle(currentOptions.gemStyle); 
         
-        // Apply Music Style - This would likely influence AudioManager or how music tracks are selected
-        // Example: audioManager.setMusicStyle(currentOptions.musicStyle);
+        // Apply Music Style - Don't set immediately, wait until options menu is closed
+        // The music style will be applied in hide() method when options are closed
+        // if (audioManager !is null) {
+        //     audioManager.setMusicStyle(currentOptions.musicStyle);
+        // }
 
         if (currentOptions.systemMode == 1) data.setCurrentGameMode(GameMode.ORIGINAL);
         else if (currentOptions.systemMode == 2) data.setCurrentGameMode(GameMode.ARRANGED);
