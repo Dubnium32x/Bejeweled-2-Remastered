@@ -724,7 +724,7 @@ class TitleScreen : IScreen {
             "PLAY GAME", 
             "OPTIONS", 
             "LEADERBOARDS", 
-            "HELP", 
+            "ACHIEVEMENTS", 
             "QUIT GAME"
         ];
         mainMenuButtonRects = new Rectangle[mainMenuButtonLabels.length];
@@ -1586,7 +1586,7 @@ class TitleScreen : IScreen {
                                     writeln("LEADERBOARDS clicked");
                                     break;
                                 case 3: // HELP
-                                    writeln("HELP clicked");
+                                    writeln("ACHIEVEMENTS clicked");
                                     break;
                                 case 4: // QUIT GAME
                                     writeln("QUIT GAME clicked");
