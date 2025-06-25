@@ -294,17 +294,8 @@ class NameEntry : IScreen {
             }
         }
 
-        // Handle escape (cancel)
-        if (IsKeyPressed(KeyboardKey.KEY_ESCAPE)) {
-            nameEntryState = NameEntryState.CANCELLED;
-            isActive = false;
-            
-            if (audioManager !is null) {
-                audioManager.playSound("resources/audio/sfx/dialog_button_click.ogg", AudioType.SFX);
-            }
-            
-            writeln("NameEntry: Cancelled.");
-        }
+        // ESC key functionality removed - players must enter a name to proceed
+        // This ensures proper name entry and avoids state transition issues
     }
 
     void draw() {
@@ -351,8 +342,8 @@ class NameEntry : IScreen {
         }
         
         // Draw instructions
-        DrawTextEx(app.fontFamily[0], "Press ENTER to confirm, ESC to cancel".toStringz(), 
-                  Vector2(VIRTUAL_SCREEN_WIDTH / 2 - MeasureTextEx(app.fontFamily[0], "Press ENTER to confirm, ESC to cancel".toStringz(), 16, 1).x / 2, 
+        DrawTextEx(app.fontFamily[0], "Press ENTER to confirm.".toStringz(), 
+                  Vector2(VIRTUAL_SCREEN_WIDTH / 2 - MeasureTextEx(app.fontFamily[0], "Press ENTER to confirm.".toStringz(), 16, 1).x / 2, 
                   dialogBoxPosition.y + 80), 16, 1, Colors.WHITE);
     }
 

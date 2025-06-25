@@ -88,6 +88,12 @@ class TransitionManager {
             return;
         }
         
+        // Recreate render textures to ensure they're clean
+        if (fromScreenCapture.id != 0) UnloadRenderTexture(fromScreenCapture);
+        if (toScreenCapture.id != 0) UnloadRenderTexture(toScreenCapture);
+        fromScreenCapture = LoadRenderTexture(VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT);
+        toScreenCapture = LoadRenderTexture(VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT);
+        
         fromState = from;
         toState = to;
         currentTransitionType = type;
@@ -192,7 +198,7 @@ class TransitionManager {
         auto screenManager = ScreenManager.getInstance();
         
         BeginTextureMode(fromScreenCapture);
-        ClearBackground(Colors.BLACK);
+        ClearBackground(Colors.BLACK); // Clear with solid black instead of transparent
         if (screenManager.getActiveScreen() !is null) {
             screenManager.getActiveScreen().draw();
         }
@@ -218,9 +224,19 @@ class TransitionManager {
         transitionState = TransitionState.COMPLETE;
         transitionProgress = 1.0f;
         
-        // Clean up
+        // Clean up capture flags
         hasFromCapture = false;
         hasToCapture = false;
+        
+        // Clean up render textures to prevent after-images
+        if (fromScreenCapture.id != 0) {
+            UnloadRenderTexture(fromScreenCapture);
+            fromScreenCapture = LoadRenderTexture(VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT);
+        }
+        if (toScreenCapture.id != 0) {
+            UnloadRenderTexture(toScreenCapture);
+            toScreenCapture = LoadRenderTexture(VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT);
+        }
         
         writeln("TransitionManager: Transition complete");
         
@@ -242,7 +258,7 @@ class TransitionManager {
         // Capture the "to" screen immediately if we haven't yet
         if (!hasToCapture) {
             BeginTextureMode(toScreenCapture);
-            ClearBackground(Colors.BLACK);
+            ClearBackground(Colors.BLACK); // Clear with solid black instead of transparent
             if (screenManager.getActiveScreen() !is null) {
                 screenManager.getActiveScreen().draw();
             }
@@ -282,6 +298,8 @@ class TransitionManager {
         
         // Always draw the "from" screen as background
         if (hasFromCapture) {
+            // Ensure proper alpha blending for captured screen
+            BeginBlendMode(BlendMode.BLEND_ALPHA);
             // Draw the captured "from" screen (title screen)
             DrawTexturePro(
                 fromScreenCapture.texture,
@@ -291,6 +309,7 @@ class TransitionManager {
                 0.0f,
                 Colors.WHITE
             );
+            EndBlendMode();
         } else if (screenManager.getActiveScreen() !is null) {
             // Fallback to live drawing of current screen
             screenManager.getActiveScreen().draw();
@@ -325,6 +344,8 @@ class TransitionManager {
                 scissorHeight
             );
             
+            // Ensure proper alpha blending for captured screen
+            BeginBlendMode(BlendMode.BLEND_ALPHA);
             // Draw the captured "to" screen (game screen)
             DrawTexturePro(
                 toScreenCapture.texture,
@@ -334,6 +355,7 @@ class TransitionManager {
                 0.0f,
                 Colors.WHITE
             );
+            EndBlendMode();
             
             EndScissorMode();
         }

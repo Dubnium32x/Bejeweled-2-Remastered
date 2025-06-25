@@ -33,6 +33,10 @@ import world.audio_manager;
     When starting the game, the game board should be empty. After a second, the gems should start falling from the top of the game board.
     This also applies when the game is reset or a new level is started.
 
+    When the game starts, the player should be able to make one of a generated 7 to 10 matches on the game board.
+    The player should be able to make matches by clicking on two adjacent gems to swap them.
+    If the player makes a match, the gems will animate and shrink down to nothing, with a particle effect of sparkles or stars.
+    If the player makes a match that does not result in a match, the gems will automatically swap back to their original positions.
 
     ** Game Board Differentiation **
 
@@ -137,8 +141,37 @@ import world.audio_manager;
     The wormhole effect will be a swirling effect that transitions between screens.
     We will just need to figure out how to implement this effect in Raylib, so that it masks the transition between screens.
 
+    ** Game Screen Implementation  TO DO **
+    1. Define the game screen class.
+    2. Implement the game screen's initialization, update, draw, and unload methods.
+    3. Define the gems and their types.
+    4. Define the game board and its layout.
+    5. Implement the game logic for matching gems and scoring points.
+    6. Set up the needed textures for the game board, gems, and UI elements.
+    7. Construct the game speed mechanic, where the game speed increases as the player advances levels.
+    8. Use the game speed mechanic to let the game foresee the player's moves and adjust the next moves accordingly.
+    9. Implement the matching logic for gems, including special gems and their effects.
+    10. Implement the game board sliding in from the right side.
+    11. Implement the menu bubbles and score counter sliding in from the left side.
+    12. Implement the hint system that shows the player where to match gems.
+    13. Implement the score system for tracking the player's score and progress.
+    14. Implement the commentator system for providing "words of encouragement" to the player.
+    15. Implement the game over screen that shows the player's score and progress.
+    16. Implement the game screen level transition system that uses the 3D wormhole effect. (This is not the same as the wormhole effect for screen transitions)
+    17. Implement the leaderboard system that tracks the player's score and progress across all game modes.
+    18. Apply special rules for each game mode, such as Classic, Action, Endless, Puzzle, and others.
+    19. Implement the level tracking system that tracks the player's progress through the game.
+    20. Implement the ranking system!
 
 
+    ** Textures and Resources **
+    - The game board will have a texture that represents the game board background: resources/image/puzzleframe.png
+    - The gems will have textures that represent each gem type: resources/image/gem0.png, resources/image/gem1.png, etc.
+    - The menu bubbles will have textures that represent each menu bubble: resources/image/menu_bubble0.png, resources/image/Classicmode.png
+    - The score counter will have a texture that represents the score counter background: resources/image/SCOREPOD.png
+    - The score font will be a texture image displaying numbers from 0 - 9: resources/image/scorefont1.png
+    - The progress bar will have a texture that represents the progress bar background: resources/image/BttomBar.png
+    
 */
 
 // ---- LOCAL VARIABLES ----

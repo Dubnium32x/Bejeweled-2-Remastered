@@ -268,6 +268,9 @@ class TitleScreen : IScreen {
     private bool titleElementsMovingOff = false;
     private bool menuGadgetsMovingOn = false;
     private bool menuGadgetsMovingOff = false;
+    private bool logoOffScreen = false;
+    private bool logo2OffScreen = false;
+    private bool buttonOffScreen = false;
     private float offScreenAnimationSpeed = 600.0f; // Reduced from 1200.0f to 600.0f for slower logo rise
     private float menuGadgetsAnimationSpeed = 1000.0f; // Pixels per second
     private float menuGadgetsScale = 1.0f; // Adjusted scale for better fit with original game
@@ -371,6 +374,9 @@ class TitleScreen : IScreen {
 
     // New: Flags for secret modes
     private bool secretModesEnabled = false; // Flag to track if secret modes are enabled
+    
+    // Static flag to track if title screen has been shown before (survives unload/reload cycles)
+    private static bool hasBeenShownBefore = false;
 
     // Menu UI text elements
     private string selectGameModeText = "Select a game mode.";
@@ -386,6 +392,15 @@ class TitleScreen : IScreen {
     // Add flags to track saved game existence
     private bool hasClassicSavedGame = false; // Set this based on save file detection
     private bool hasActionSavedGame = false;  // Set this based on save file detection
+
+    // Keyboard navigation variables
+    private int selectedMainMenuIndex = -1; // -1=no selection, 0=Play Game, 1=Options, 2=Leaderboards, 3=Achievements, 4=Quit Game
+    private int selectedGameMenuIndex = -1; // -1=no selection, 0=Toggle Secret Modes, 1=Return to Main Menu
+    private bool keyboardNavigationEnabled = true; // Enable keyboard navigation
+    
+    // Mouse movement tracking for clearing keyboard selection
+    private Vector2 lastMousePosition = Vector2(-1, -1);
+    private bool mouseHasMoved = false;
 
     this() {
         // Initialize singleton instance
@@ -568,8 +583,47 @@ class TitleScreen : IScreen {
         mainMenuButtonHighlightAlphaTexture = LoadTexture("resources/image/GMBHIghlite_.png");
         SetTextureFilter(mainMenuButtonHighlightAlphaTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
 
-        // Initialize state
-        state = TitleState.LOGO;
+        // Initialize state based on whether this is the first time showing the title screen
+        if (hasBeenShownBefore) {
+            // Skip logo sequence and go directly to main menu
+            state = TitleState.MAINMENU;
+            writeln("TitleScreen: Returning user detected, starting in MAINMENU state");
+            
+            // Initialize elements for direct main menu start
+            titleElementsMovingOff = false;
+            logoOffScreen = true;
+            logo2OffScreen = true;
+            buttonOffScreen = true;
+            fadeInComplete = true;
+            logoAnimationStarted = true;
+            
+            // Position logos off-screen (above the screen)
+            logoPosition = Vector2((VIRTUAL_SCREEN_WIDTH - logoTexture.width) / 2.0f + (16 * textureScale), -logoTexture.height);
+            logo2Position = Vector2((VIRTUAL_SCREEN_WIDTH - logo2Texture.width) / 2.0f, -logo2Texture.height);
+            
+            // Position menu gadgets at their target location
+            menuGadgetsPosition = Vector2((VIRTUAL_SCREEN_WIDTH - (menuGadgetsTexture.width * menuGadgetsScale)) / 2.0f, menuGadgetsTargetY);
+            menuGadgetsMovingOn = false;
+            
+            // Show small logos immediately
+            smallLogoIsShown = true;
+            smallLogoAnimatingIn = false;
+            smallLogoAnimatingOut = false;
+            smallLogoCurrentY = smallLogoTargetY;
+            
+            // Show main menu buttons immediately
+            mainMenuButtonsAreShown = true;
+            mainMenuButtonsAnimatingIn = false;
+            mainMenuButtonsAnimatingOut = false;
+            mainMenuButtonCurrentX = mainMenuButtonTargetX;
+            
+            // Ensure screen is not faded
+            screenFadeAlpha = 0.0f;
+        } else {
+            // First time showing, start with logo sequence
+            state = TitleState.LOGO;
+            writeln("TitleScreen: First time showing title screen, starting with LOGO sequence");
+        }
 
         // Initialize audio
         audioManager.initialize();
@@ -591,9 +645,6 @@ class TitleScreen : IScreen {
         // Initialize subtitle effect variables
         subtitleEffectActive = false;
 
-        // Set initial state
-        state = TitleState.LOGO;
-        
         // Check for saved game files (for demo, these are set to false)
         // TODO: Add actual save file detection
         hasClassicSavedGame = false;
@@ -978,6 +1029,24 @@ class TitleScreen : IScreen {
     }
 
     void update(float dt) {
+        // Track mouse movement to clear keyboard selection when mouse moves
+        Vector2 currentMousePos = GetMousePositionVirtual();
+        if (lastMousePosition.x == -1 && lastMousePosition.y == -1) {
+            // First frame - initialize mouse position
+            lastMousePosition = currentMousePos;
+            mouseHasMoved = false;
+        } else {
+            // Check if mouse has moved significantly (more than 5 pixels)
+            float mouseMoveThreshold = 5.0f;
+            float deltaX = abs(currentMousePos.x - lastMousePosition.x);
+            float deltaY = abs(currentMousePos.y - lastMousePosition.y);
+            
+            if (deltaX > mouseMoveThreshold || deltaY > mouseMoveThreshold) {
+                mouseHasMoved = true;
+                lastMousePosition = currentMousePos;
+            }
+        }
+        
         // TEST: Keyboard controls to test different last played modes
         // Press 1-4 to set Classic, Action, Endless, or Puzzle as last played
         if (IsKeyPressed(KeyboardKey.KEY_ONE)) {
@@ -1183,9 +1252,10 @@ class TitleScreen : IScreen {
 
         // Handle title elements moving off screen
         if (titleElementsMovingOff) {
-            bool logoOffScreen = false;
-            bool logo2OffScreen = false;
-            bool buttonOffScreen = false;
+            // Reset flags at start of animation
+            logoOffScreen = false;
+            logo2OffScreen = false;
+            buttonOffScreen = false;
 
             // Animate logo
             if (logoPosition.y > -logoTexture.height) {
@@ -1240,6 +1310,12 @@ class TitleScreen : IScreen {
                 // Ensure gadgets start from their off-screen position, adjusted for scale
                 menuGadgetsPosition = Vector2((VIRTUAL_SCREEN_WIDTH - (menuGadgetsTexture.width * menuGadgetsScale)) / 2.0f, menuGadgetsStartY); // Changed
                 state = TitleState.MAINMENU; // Transition to main menu state
+                
+                // Mark that the title screen has been fully shown (after logo sequence)
+                if (!hasBeenShownBefore) {
+                    hasBeenShownBefore = true;
+                    writeln("TitleScreen: Logo sequence complete, marking as shown before");
+                }
             }
         }
 
@@ -1555,8 +1631,94 @@ class TitleScreen : IScreen {
                         }
                     }
 
+                    // Mouse override: Update keyboard selection based on mouse state
+                    if (currentHoveredButton != -1) {
+                        // Mouse is hovering over a button - update keyboard selection to match
+                        selectedMainMenuIndex = currentHoveredButton;
+                        mouseHasMoved = false; // Reset movement flag since we're hovering
+                    } else if (mouseHasMoved) {
+                        // Mouse has moved but isn't hovering over any button - clear keyboard selection
+                        selectedMainMenuIndex = -1;
+                        mouseHasMoved = false; // Reset movement flag
+                    }
+
                     if (!playerHasSavedName) {
                         nameEntryDialog.update(dt); // Update name entry dialog if it exists
+                    }
+                    
+                    // Keyboard navigation for main menu
+                    if (keyboardNavigationEnabled) {
+                        // Handle up/down or W/S navigation
+                        if (IsKeyPressed(KeyboardKey.KEY_UP) || IsKeyPressed(KeyboardKey.KEY_W)) {
+                            if (selectedMainMenuIndex == -1) {
+                                selectedMainMenuIndex = 0; // Start with first option when first navigating
+                            } else {
+                                selectedMainMenuIndex = (selectedMainMenuIndex - 1 + cast(int)mainMenuButtonLabels.length) % cast(int)mainMenuButtonLabels.length;
+                            }
+                            if (mainMenuMouseOverSound.frameCount > 0) PlaySound(mainMenuMouseOverSound);
+                        } else if (IsKeyPressed(KeyboardKey.KEY_DOWN) || IsKeyPressed(KeyboardKey.KEY_S)) {
+                            if (selectedMainMenuIndex == -1) {
+                                selectedMainMenuIndex = 0; // Start with first option when first navigating
+                            } else {
+                                selectedMainMenuIndex = (selectedMainMenuIndex + 1) % cast(int)mainMenuButtonLabels.length;
+                            }
+                            if (mainMenuMouseOverSound.frameCount > 0) PlaySound(mainMenuMouseOverSound);
+                        }
+                        
+                        // Handle Enter key to select
+                        if (IsKeyPressed(KeyboardKey.KEY_ENTER) && selectedMainMenuIndex >= 0) {
+                            if (menuClickSound.frameCount > 0) PlaySound(menuClickSound);
+                            
+                            switch (selectedMainMenuIndex) {
+                                case 0: // PLAY GAME
+                                    state = TitleState.GAMEMENU;
+                                    menuGadgetsMovingOn = true; 
+                                    selectedGameMenuIndex = -1; // Start with no selection
+                                    writeln("PLAY GAME selected via keyboard, transitioning to GAMEMENU");
+                                    break;
+                                case 1: // OPTIONS
+                                    writeln("OPTIONS selected via keyboard");
+                                    state = TitleState.OPTIONS;
+                                    optionsPopup.show();
+                                    break;
+                                case 2: // LEADERBOARDS
+                                    writeln("LEADERBOARDS selected via keyboard");
+                                    break;
+                                case 3: // HELP
+                                    writeln("ACHIEVEMENTS selected via keyboard");
+                                    break;
+                                case 4: // QUIT GAME
+                                    writeln("QUIT GAME selected via keyboard");
+                                    state = TitleState.QUIT;
+                                    quitDialog.show();
+                                    break;
+                                default:
+                                    break;
+                            }
+                        }
+                        
+                        // Handle Escape key to show quit dialog
+                        if (IsKeyPressed(KeyboardKey.KEY_ESCAPE)) {
+                            state = TitleState.QUIT;
+                            quitDialog.show();
+                        }
+                        
+                        // Sync keyboard selection with hover states (visual feedback)
+                        for (size_t i = 0; i < mainMenuButtonLabels.length; i++) {
+                            if (CheckCollisionPointRec(mousePosition, mainMenuButtonRects[i])) {
+                                // Mouse override: update keyboard selection to match mouse hover
+                                selectedMainMenuIndex = cast(int)i;
+                                mainMenuButtonHoverStates[i] = true;
+                                currentHoveredButton = cast(int)i;
+                            } else if (i == selectedMainMenuIndex && selectedMainMenuIndex >= 0) {
+                                // Show keyboard selection only if no mouse override
+                                mainMenuButtonHoverStates[i] = true;
+                                currentHoveredButton = cast(int)i;
+                            } else {
+                                // Clear hover state
+                                mainMenuButtonHoverStates[i] = false;
+                            }
+                        }
                     }
                     
                     if (currentHoveredButton == -1 && mainMenuLastHoveredButtonIndex != -1) {
@@ -1575,6 +1737,7 @@ class TitleScreen : IScreen {
                                     if (menuClickSound.frameCount > 0) PlaySound(menuClickSound);
                                     state = TitleState.GAMEMENU;
                                     menuGadgetsMovingOn = true; 
+                                    selectedGameMenuIndex = -1; // Start with no selection
                                     writeln("PLAY GAME clicked, transitioning to GAMEMENU");
                                     break;
                                 case 1: // OPTIONS
@@ -1621,6 +1784,12 @@ class TitleScreen : IScreen {
                     if (nameEntryDialog.isNameEntryConfirmed() && nameEntryDialog.getPlayerName() != "") {
                         // Name was entered and confirmed
                         welcomeText = "Welcome, " ~ data.playerSavedName ~ "!";
+                        
+                        // Save the options to persist the player name
+                        if (optionsPopup !is null) {
+                            optionsPopup.saveOptions();
+                            writeln("TitleScreen: Player name saved to options file");
+                        }
                     }
                     
                     state = TitleState.MAINMENU; // Return to main menu
@@ -1909,6 +2078,214 @@ class TitleScreen : IScreen {
                     
                     // Update the last hovered button
                     lastHoveredButton = currentHoveredButton;
+                    
+                    // Mouse override: Update keyboard selection based on mouse state
+                    if (currentHoveredButton == 1) {
+                        // Mouse is over Classic
+                        selectedGameMenuIndex = 0;
+                        mouseHasMoved = false; // Reset movement flag since we're hovering
+                    } else if (currentHoveredButton == 2) {
+                        // Mouse is over Action
+                        selectedGameMenuIndex = 1;
+                        mouseHasMoved = false; // Reset movement flag since we're hovering
+                    } else if (currentHoveredButton == 3) {
+                        // Mouse is over Endless
+                        selectedGameMenuIndex = 3;
+                        mouseHasMoved = false; // Reset movement flag since we're hovering
+                    } else if (currentHoveredButton == 4) {
+                        // Mouse is over Puzzle
+                        selectedGameMenuIndex = 2;
+                        mouseHasMoved = false; // Reset movement flag since we're hovering
+                    } else if (currentHoveredButton == 5) {
+                        // Mouse is over Toggle Secret Modes
+                        selectedGameMenuIndex = 4;
+                        mouseHasMoved = false; // Reset movement flag since we're hovering
+                    } else if (currentHoveredButton == 6) {
+                        // Mouse is over Return to Main Menu
+                        selectedGameMenuIndex = 5;
+                        mouseHasMoved = false; // Reset movement flag since we're hovering
+                    } else if (mouseHasMoved) {
+                        // Mouse has moved but isn't hovering over any button - clear keyboard selection
+                        selectedGameMenuIndex = -1;
+                        mouseHasMoved = false; // Reset movement flag
+                    }
+                    
+                    // Keyboard navigation for game menu
+                    if (keyboardNavigationEnabled) {
+                        // Handle arrow key navigation between game modes (0-3: Classic, Action, Puzzle, Endless)
+                        // Grid layout: Classic(0)  Action(1)
+                        //              Puzzle(2)   Endless(3)
+                        // and bottom menu options (4-5: Toggle Secret Modes, Return to Main Menu)
+                        if (IsKeyPressed(KeyboardKey.KEY_UP) || IsKeyPressed(KeyboardKey.KEY_W)) {
+                            if (selectedGameMenuIndex == -1) {
+                                selectedGameMenuIndex = 0; // Start with Classic when first navigating
+                            } else if (selectedGameMenuIndex >= 4) {
+                                // Moving up from bottom menu to game modes (go to bottom row)
+                                selectedGameMenuIndex = 2; // Puzzle (bottom-left)
+                            } else if (selectedGameMenuIndex == 0 || selectedGameMenuIndex == 1) {
+                                // Top row -> Bottom row
+                                selectedGameMenuIndex += 2; // Classic->Puzzle, Action->Endless
+                            } else {
+                                // Bottom row -> Top row
+                                selectedGameMenuIndex -= 2; // Puzzle->Classic, Endless->Action
+                            }
+                            if (mainMenuMouseOverSound.frameCount > 0) PlaySound(mainMenuMouseOverSound);
+                        } else if (IsKeyPressed(KeyboardKey.KEY_DOWN) || IsKeyPressed(KeyboardKey.KEY_S)) {
+                            if (selectedGameMenuIndex == -1) {
+                                selectedGameMenuIndex = 0; // Start with Classic when first navigating
+                            } else if (selectedGameMenuIndex == 0 || selectedGameMenuIndex == 1) {
+                                // Top row -> Bottom row
+                                selectedGameMenuIndex += 2; // Classic->Puzzle, Action->Endless
+                            } else if (selectedGameMenuIndex == 2 || selectedGameMenuIndex == 3) {
+                                // Bottom row -> Bottom menu
+                                selectedGameMenuIndex = 4; // Toggle Secret Modes
+                            } else if (selectedGameMenuIndex == 4) {
+                                selectedGameMenuIndex = 5; // Return to Main Menu
+                            } else if (selectedGameMenuIndex == 5) {
+                                // Wrap back to top
+                                selectedGameMenuIndex = 0; // Classic
+                            }
+                            if (mainMenuMouseOverSound.frameCount > 0) PlaySound(mainMenuMouseOverSound);
+                        } else if (IsKeyPressed(KeyboardKey.KEY_LEFT) || IsKeyPressed(KeyboardKey.KEY_A)) {
+                            if (selectedGameMenuIndex == -1) {
+                                selectedGameMenuIndex = 0; // Start with Classic when first navigating
+                            } else if (selectedGameMenuIndex >= 4) {
+                                // Navigate between bottom menu options
+                                selectedGameMenuIndex = 4; // Toggle Secret Modes
+                            } else {
+                                // Navigate within grid rows: 1->0, 0->1, 3->2, 2->3
+                                if (selectedGameMenuIndex == 0) selectedGameMenuIndex = 1;      // Classic -> Action
+                                else if (selectedGameMenuIndex == 1) selectedGameMenuIndex = 0; // Action -> Classic
+                                else if (selectedGameMenuIndex == 2) selectedGameMenuIndex = 3; // Puzzle -> Endless
+                                else if (selectedGameMenuIndex == 3) selectedGameMenuIndex = 2; // Endless -> Puzzle
+                            }
+                            if (mainMenuMouseOverSound.frameCount > 0) PlaySound(mainMenuMouseOverSound);
+                        } else if (IsKeyPressed(KeyboardKey.KEY_RIGHT) || IsKeyPressed(KeyboardKey.KEY_D)) {
+                            if (selectedGameMenuIndex == -1) {
+                                selectedGameMenuIndex = 0; // Start with Classic when first navigating
+                            } else if (selectedGameMenuIndex >= 4) {
+                                // Navigate between bottom menu options
+                                selectedGameMenuIndex = 5; // Return to Main Menu
+                            } else {
+                                // Navigate within grid rows: 0->1, 1->0, 2->3, 3->2
+                                if (selectedGameMenuIndex == 0) selectedGameMenuIndex = 1;      // Classic -> Action
+                                else if (selectedGameMenuIndex == 1) selectedGameMenuIndex = 0; // Action -> Classic
+                                else if (selectedGameMenuIndex == 2) selectedGameMenuIndex = 3; // Puzzle -> Endless
+                                else if (selectedGameMenuIndex == 3) selectedGameMenuIndex = 2; // Endless -> Puzzle
+                            }
+                            if (mainMenuMouseOverSound.frameCount > 0) PlaySound(mainMenuMouseOverSound);
+                        }
+                        
+                        // Handle Enter key to select
+                        if (IsKeyPressed(KeyboardKey.KEY_ENTER) && selectedGameMenuIndex >= 0) {
+                            switch (selectedGameMenuIndex) {
+                                case 0: // Classic
+                                    data.setMostRecentGameMode(0);
+                                    writeln("Classic mode selected via keyboard - starting wormhole transition");
+                                    import world.screen_manager;
+                                    import world.transition_manager;
+                                    auto screenManager = ScreenManager.getInstance();
+                                    screenManager.transitionToState(ScreenState.GAMEPLAY, TransitionType.WORMHOLE, 2.0f);
+                                    break;
+                                case 1: // Action
+                                    data.setMostRecentGameMode(1);
+                                    writeln("Action mode selected via keyboard - starting wormhole transition");
+                                    import world.screen_manager;
+                                    import world.transition_manager;
+                                    auto screenManager1 = ScreenManager.getInstance();
+                                    screenManager1.transitionToState(ScreenState.GAMEPLAY, TransitionType.WORMHOLE, 2.0f);
+                                    break;
+                                case 2: // Puzzle
+                                    data.setMostRecentGameMode(3);
+                                    writeln("Puzzle mode selected via keyboard - starting wormhole transition");
+                                    import world.screen_manager;
+                                    import world.transition_manager;
+                                    auto screenManager2 = ScreenManager.getInstance();
+                                    screenManager2.transitionToState(ScreenState.GAMEPLAY, TransitionType.WORMHOLE, 2.0f);
+                                    break;
+                                case 3: // Endless
+                                    data.setMostRecentGameMode(2);
+                                    writeln("Endless mode selected via keyboard - starting wormhole transition");
+                                    import world.screen_manager;
+                                    import world.transition_manager;
+                                    auto screenManager3 = ScreenManager.getInstance();
+                                    screenManager3.transitionToState(ScreenState.GAMEPLAY, TransitionType.WORMHOLE, 2.0f);
+                                    break;
+                                case 4: // Toggle Secret Modes
+                                    PlaySound(mainMenuMouseClickSound);
+                                    writeln("Toggle Secret Modes selected via keyboard");
+                                    break;
+                                case 5: // Return to Main Menu
+                                    PlaySound(mainMenuMouseClickSound);
+                                    menuGadgetsMovingOff = true;
+                                    writeln("Return to Main Menu selected via keyboard - starting menu gadgets animation");
+                                    break;
+                                default:
+                                    break;
+                            }
+                        }
+                        
+                        // Handle Escape key to return to main menu
+                        if (IsKeyPressed(KeyboardKey.KEY_ESCAPE)) {
+                            PlaySound(mainMenuMouseClickSound);
+                            menuGadgetsMovingOff = true;
+                            writeln("Escape pressed - returning to main menu");
+                        }
+                        
+                        // Sync keyboard selection with hover states for visual feedback
+                        // Handle mouse override: if mouse is hovering, update keyboard selection
+                        bool mouseOverrideDetected = false;
+                        if (classicButtonHovered && selectedGameMenuIndex != 0) {
+                            selectedGameMenuIndex = 0; mouseOverrideDetected = true;
+                        } else if (actionButtonHovered && selectedGameMenuIndex != 1) {
+                            selectedGameMenuIndex = 1; mouseOverrideDetected = true;
+                        } else if (puzzleButtonHovered && selectedGameMenuIndex != 2) {
+                            selectedGameMenuIndex = 2; mouseOverrideDetected = true;
+                        } else if (endlessButtonHovered && selectedGameMenuIndex != 3) {
+                            selectedGameMenuIndex = 3; mouseOverrideDetected = true;
+                        } else if (toggleModesButtonHovered && selectedGameMenuIndex != 4) {
+                            selectedGameMenuIndex = 4; mouseOverrideDetected = true;
+                        } else if (returnToMenuButtonHovered && selectedGameMenuIndex != 5) {
+                            selectedGameMenuIndex = 5; mouseOverrideDetected = true;
+                        }
+                        
+                        // Apply keyboard selection to hover states only if valid selection and no mouse override
+                        if (selectedGameMenuIndex >= 0 && !mouseOverrideDetected) {
+                            // Clear all hover states first
+                            classicButtonHovered = false;
+                            actionButtonHovered = false;
+                            puzzleButtonHovered = false;
+                            endlessButtonHovered = false;
+                            toggleModesButtonHovered = false;
+                            returnToMenuButtonHovered = false;
+                            
+                            // Set the selected one
+                            switch (selectedGameMenuIndex) {
+                                case 0: classicButtonHovered = true; break;
+                                case 1: actionButtonHovered = true; break;
+                                case 2: puzzleButtonHovered = true; break;
+                                case 3: endlessButtonHovered = true; break;
+                                case 4: toggleModesButtonHovered = true; break;
+                                case 5: returnToMenuButtonHovered = true; break;
+                                default: break;
+                            }
+                        }
+                        
+                        // Set current hovered button for portal color effects
+                        if (selectedGameMenuIndex >= 0) {
+                            switch (selectedGameMenuIndex) {
+                                case 0: currentHoveredButton = 1; break; // Classic
+                                case 1: currentHoveredButton = 2; break; // Action
+                                case 2: currentHoveredButton = 4; break; // Puzzle
+                                case 3: currentHoveredButton = 3; break; // Endless
+                                case 4: currentHoveredButton = 5; break; // Toggle Secret Modes
+                                case 5: currentHoveredButton = 6; break; // Return to Main Menu
+                                default: currentHoveredButton = 0; break;
+                            }
+                        } else {
+                            currentHoveredButton = 0; // No selection
+                        }
+                    }
                     
                     // Update portal target color based on hovered button (using specified colors)
                     switch (currentHoveredButton) {
@@ -2284,14 +2661,14 @@ class TitleScreen : IScreen {
             }
         }
 
-        // Draw the actual logo2 texture if the fade is complete and it's on screen
-        if (fadeInComplete && logo2Position.y < VIRTUAL_SCREEN_HEIGHT && logo2Position.y > -logo2Texture.height) { // Changed
+        // Draw the actual logo2 texture if the fade is complete and it's on screen and we're in LOGO state
+        if (state == TitleState.LOGO && fadeInComplete && logo2Position.y < VIRTUAL_SCREEN_HEIGHT && logo2Position.y > -logo2Texture.height) { // Changed
             DrawTexturePro(logo2Texture, Rectangle(0, 0, logo2Texture.width, logo2Texture.height), 
                 Rectangle(logo2Position.x, logo2Position.y, logo2Texture.width, logo2Texture.height), Vector2(0, 0), 0.0f, Colors.WHITE);
         }
 
-        // Draw the whitened logo2 texture (if on screen)
-        if (whitenedLogo2Alpha > 0.0f && logo2Position.y < VIRTUAL_SCREEN_HEIGHT && logo2Position.y > -logo2Texture.height) { // Changed
+        // Draw the whitened logo2 texture (if on screen and in LOGO state)
+        if (state == TitleState.LOGO && whitenedLogo2Alpha > 0.0f && logo2Position.y < VIRTUAL_SCREEN_HEIGHT && logo2Position.y > -logo2Texture.height) { // Changed
             DrawTextureEx(whitenedLogo2Texture, 
                 logo2Position, 
                 0.0f, 1.0f, 
@@ -2303,7 +2680,7 @@ class TitleScreen : IScreen {
         static bool subtitleAnimStarted = false;
         static float subtitleScaleAnimated = 2.5f; // Start really huge
 
-        if (whitenedLogo2Alpha == 0.0f && fadeInComplete) { // Only draw subtitle if logo2 is faded out
+        if (state == TitleState.LOGO && whitenedLogo2Alpha == 0.0f && fadeInComplete) { // Only draw subtitle if logo2 is faded out and we're in LOGO state
             if (!subtitleAnimStarted) {
                 subtitleAnimStarted = true;
                 subtitleAnimTimer = 0.0f;
@@ -2915,6 +3292,22 @@ class TitleScreen : IScreen {
         string stateText = "State: " ~ to!string(state);
         DrawTextEx(app.fontFamily[4], stateText.toStringz(), Vector2(10, VIRTUAL_SCREEN_HEIGHT - 30), 20, 1.0f, Colors.WHITE);
 
+        // Draw keyboard navigation hints
+        if (state == TitleState.MAINMENU || state == TitleState.GAMEMENU) {
+            string hintText = "";
+            if (state == TitleState.MAINMENU) {
+                hintText = "Arrow Keys / WASD: Navigate | Enter: Select | Esc: Quit";
+            } else if (state == TitleState.GAMEMENU) {
+                hintText = "Arrow Keys / WASD: Navigate | Enter: Select | Esc: Back";
+            }
+            
+            float hintFontSize = 16.0f;
+            Vector2 hintTextSize = MeasureTextEx(app.fontFamily[4], hintText.toStringz(), hintFontSize, 1.0f);
+            float hintX = VIRTUAL_SCREEN_WIDTH - hintTextSize.x - 10; // Right edge
+            float hintY = VIRTUAL_SCREEN_HEIGHT - hintTextSize.y - 10; // Bottom edge
+            DrawTextEx(app.fontFamily[4], hintText.toStringz(), Vector2(hintX, hintY), hintFontSize, 1.0f, Colors.LIGHTGRAY);
+        }
+
         // Draw Copyright Text in LOGO state
         if (state == TitleState.LOGO) {
             float copyrightFontSize = 16.0f;
@@ -2989,8 +3382,8 @@ class TitleScreen : IScreen {
         UnloadSound(click2Sound);
         UnloadSound(mainMenuGameStartSound);
 
-        // Reset state
-        state = TitleState.LOGO;
+        // Note: We don't reset the state here since it should be handled by initialize()
+        // based on whether this is the first time showing the title screen
     }
     
 }

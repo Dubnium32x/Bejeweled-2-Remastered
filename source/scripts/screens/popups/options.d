@@ -233,19 +233,31 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
     public int getCurrentMusicStyle() {
         return currentOptions.musicStyle;
     }
+    
+    // Public method to save options to file (for external calls like name entry confirmation)
+    public void saveOptions() {
+        saveOptionsToFile();
+    }
 
     // Public method to check for and apply pending resolution changes at game startup
     public bool applyPendingResolutionChanges() {
         try {
+            bool changesMade = false;
+            
+            // Always check and apply fullscreen setting on startup (regardless of pending changes)
+            if (currentOptions.fullscreen && !IsWindowState(ConfigFlags.FLAG_WINDOW_UNDECORATED)) {
+                writeln("Applying fullscreen setting from options.ini...");
+                ToggleBorderlessWindowed();
+                changesMade = true;
+            } else if (!currentOptions.fullscreen && IsWindowState(ConfigFlags.FLAG_WINDOW_UNDECORATED)) {
+                writeln("Applying windowed setting from options.ini...");
+                ToggleBorderlessWindowed(); // Call again to toggle off if it was on
+                changesMade = true;
+            }
+            
+            // Apply pending resolution changes if any
             if (currentOptions.hasPendingResolutionChange) {
                 writeln("Applying pending resolution changes...");
-                
-                // Apply fullscreen (borderless windowed) changes
-                if (currentOptions.fullscreen && !IsWindowState(ConfigFlags.FLAG_WINDOW_UNDECORATED)) { // Changed to FLAG_WINDOW_UNDECORATED
-                    ToggleBorderlessWindowed();
-                } else if (!currentOptions.fullscreen && IsWindowState(ConfigFlags.FLAG_WINDOW_UNDECORATED)) { // Changed to FLAG_WINDOW_UNDECORATED
-                    ToggleBorderlessWindowed(); // Call again to toggle off if it was on
-                }
                 
                 // Apply resolution changes if needed
                 string[] resParts = currentOptions.resolution.split('x');
@@ -257,15 +269,16 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
                     if (width != GetScreenWidth() || height != GetScreenHeight()) {
                         writeln("Setting resolution to ", width, "x", height);
                         SetWindowSize(width, height);
+                        changesMade = true;
                     }
                 }
                 
                 // Reset the flag
                 currentOptions.hasPendingResolutionChange = false;
                 saveOptionsToFile();
-                
-                return true; // Changes were applied
             }
+            
+            return changesMade; // Changes were applied
         } catch (Exception e) {
             writeln("Error applying resolution changes: ", e.msg);
             // Ensure the flag is reset to avoid repeated attempts

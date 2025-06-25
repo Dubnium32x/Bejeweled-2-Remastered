@@ -27,11 +27,9 @@ class QuitDialog {
     
     // Dialog textures
     private Texture2D dialogBoxTexture;
-    private Texture2D dialogButtonTexture;
-    private Texture2D dialogButtonHoverTexture;
+    private Texture2D toggleTexture;
     private Texture2D dialogBoxAlphaMask;
-    private Texture2D dialogButtonAlpha;
-    private Texture2D dialogButtonHoverAlpha;
+    private Texture2D toggleAlphaMask;
     
     // Dialog state
     private QuitDialogState dialogState = QuitDialogState.ACTIVE;
@@ -39,10 +37,14 @@ class QuitDialog {
     
     // Layout variables
     private Vector2 dialogBoxPosition;
-    private Rectangle yesButtonRect;
-    private Rectangle noButtonRect;
-    private bool yesButtonHovered = false;
-    private bool noButtonHovered = false;
+    private Rectangle toggleRect;
+    private Rectangle noSideRect;
+    private Rectangle yesSideRect;
+    private bool noSideHovered = false;
+    private bool yesSideHovered = false;
+    
+    // Keyboard navigation
+    private int selectedOption = 0; // 0 = No, 1 = Yes
     
     // Animation variables
     private float dialogBoxScale = 0.0f;
@@ -81,16 +83,12 @@ class QuitDialog {
         }
         
         try {
-            dialogButtonTexture = memoryManager.loadTexture("resources/image/DialogButton.png");
-            SetTextureFilter(dialogButtonTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
-            dialogButtonAlpha = memoryManager.loadTexture("resources/image/DialogButton_.png");
-            SetTextureFilter(dialogButtonAlpha, TextureFilter.TEXTURE_FILTER_BILINEAR);
-            dialogButtonHoverTexture = memoryManager.loadTexture("resources/image/DialogButtonglow.png");
-            SetTextureFilter(dialogButtonHoverTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
-            dialogButtonHoverAlpha = memoryManager.loadTexture("resources/image/DialogButtonglow_.png");
-            SetTextureFilter(dialogButtonHoverAlpha, TextureFilter.TEXTURE_FILTER_BILINEAR);
+            toggleTexture = memoryManager.loadTexture("resources/image/Toggle.png");
+            SetTextureFilter(toggleTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
+            toggleAlphaMask = memoryManager.loadTexture("resources/image/Toggle_.png");
+            SetTextureFilter(toggleAlphaMask, TextureFilter.TEXTURE_FILTER_BILINEAR);
         } catch (Exception e) {
-            writeln("Could not load dialog button textures: ", e.msg);
+            writeln("Could not load toggle texture: ", e.msg);
         }
         
         // Set up button rectangles
@@ -112,44 +110,48 @@ class QuitDialog {
             dialogBoxTexture = LoadTextureFromImage(dialogBoxImage);
             SetTextureFilter(dialogBoxTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         }
-        if (dialogButtonAlpha.id != 0) {
-            Image buttonImage = LoadImageFromTexture(dialogButtonTexture);
-            ImageAlphaMask(&buttonImage, LoadImageFromTexture(dialogButtonAlpha));
-            dialogButtonTexture = LoadTextureFromImage(buttonImage);
-            SetTextureFilter(dialogButtonTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
-        }
-        if (dialogButtonHoverAlpha.id != 0) {
-            Image buttonHoverImage = LoadImageFromTexture(dialogButtonHoverTexture);
-            ImageAlphaMask(&buttonHoverImage, LoadImageFromTexture(dialogButtonHoverAlpha));
-            dialogButtonHoverTexture = LoadTextureFromImage(buttonHoverImage);
-            SetTextureFilter(dialogButtonHoverTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
+        if (toggleAlphaMask.id != 0) {
+            Image toggleImage = LoadImageFromTexture(toggleTexture);
+            ImageAlphaMask(&toggleImage, LoadImageFromTexture(toggleAlphaMask));
+            toggleTexture = LoadTextureFromImage(toggleImage);
+            SetTextureFilter(toggleTexture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         }
         // Ensure textures are properly unloaded when done
 
     }
     
     private void updateButtonRects() {
-        float buttonWidth = 120.0f;
-        float buttonHeight = 40.0f;
-        float buttonSpacing = 40.0f;
+        // Position toggle below the message
+        float toggleY = dialogBoxPosition.y + 40.0f;
         
-        // Position buttons side by side below the message
-        float buttonsY = dialogBoxPosition.y + 40.0f;
-        float totalButtonsWidth = (buttonWidth * 2) + buttonSpacing;
-        float buttonsStartX = dialogBoxPosition.x - (totalButtonsWidth / 2.0f);
+        // Use the actual toggle texture dimensions if available, otherwise fallback
+        float toggleWidth = (toggleTexture.id != 0) ? toggleTexture.width : 200.0f;
+        float toggleHeight = (toggleTexture.id != 0) ? toggleTexture.height : 60.0f;
         
-        yesButtonRect = Rectangle(
-            buttonsStartX,
-            buttonsY,
-            buttonWidth,
-            buttonHeight
+        // Center the toggle horizontally
+        float toggleX = dialogBoxPosition.x - (toggleWidth / 2.0f);
+        
+        toggleRect = Rectangle(
+            toggleX,
+            toggleY,
+            toggleWidth,
+            toggleHeight
         );
         
-        noButtonRect = Rectangle(
-            buttonsStartX + buttonWidth + buttonSpacing,
-            buttonsY,
-            buttonWidth,
-            buttonHeight
+        // Split the toggle into two clickable halves
+        // Left half = NO, Right half = YES
+        noSideRect = Rectangle(
+            toggleX,
+            toggleY,
+            toggleWidth / 2.0f,
+            toggleHeight
+        );
+        
+        yesSideRect = Rectangle(
+            toggleX + (toggleWidth / 2.0f),
+            toggleY,
+            toggleWidth / 2.0f,
+            toggleHeight
         );
     }
     
@@ -162,6 +164,9 @@ class QuitDialog {
         // Reset animation
         dialogBoxScale = 0.0f;
         dialogBoxAlpha = 0.0f;
+        
+        // Reset selection to "No" (safer default)
+        selectedOption = 0;
         
         // Play dialog open sound
         if (audioManager !is null) {
@@ -225,14 +230,29 @@ class QuitDialog {
             // Handle input only if not showing goodbye
             Vector2 mousePos = GetMousePositionVirtual();
             
-            // Update button hover states
-            yesButtonHovered = CheckCollisionPointRec(mousePos, yesButtonRect);
-            noButtonHovered = CheckCollisionPointRec(mousePos, noButtonRect);
+            // Update hover states for toggle sides
+            bool mouseOnNo = CheckCollisionPointRec(mousePos, noSideRect);
+            bool mouseOnYes = CheckCollisionPointRec(mousePos, yesSideRect);
+            
+            // Update selection based on mouse position, but maintain keyboard selection otherwise
+            if (mouseOnNo) {
+                selectedOption = 0;
+                noSideHovered = true;
+                yesSideHovered = false;
+            } else if (mouseOnYes) {
+                selectedOption = 1;
+                noSideHovered = false;
+                yesSideHovered = true;
+            } else {
+                // No mouse hover, use keyboard selection to set hover states
+                noSideHovered = (selectedOption == 0);
+                yesSideHovered = (selectedOption == 1);
+            }
             
             // Handle button clicks
             if (IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT)) {
-                if (yesButtonHovered) {
-                    // User confirmed quit
+                if (yesSideHovered) {
+                    // User confirmed quit (clicked YES side)
                     dialogState = QuitDialogState.CONFIRMED;
                     showingGoodbye = true;
                     goodbyeTimer = 0.0f;
@@ -243,26 +263,66 @@ class QuitDialog {
                     }
                     
                     writeln("Quit confirmed - showing goodbye message");
-                } else if (noButtonHovered) {
-                    // User cancelled quit
+                } else if (noSideHovered) {
+                    // User cancelled quit (clicked NO side)
                     hide();
                 }
             }
             
-            // Handle keyboard input
-            if (IsKeyPressed(KeyboardKey.KEY_Y) || IsKeyPressed(KeyboardKey.KEY_ENTER)) {
-                // Yes, quit
+            // Handle keyboard navigation
+            // Left/Right or A/D to navigate between No and Yes
+            if (IsKeyPressed(KeyboardKey.KEY_LEFT) || IsKeyPressed(KeyboardKey.KEY_A)) {
+                selectedOption = 0; // Select "No"
+                if (audioManager !is null) {
+                    audioManager.playSound("resources/audio/sfx/mainmenu_mouseover.ogg", AudioType.SFX);
+                }
+            } else if (IsKeyPressed(KeyboardKey.KEY_RIGHT) || IsKeyPressed(KeyboardKey.KEY_D)) {
+                selectedOption = 1; // Select "Yes"
+                if (audioManager !is null) {
+                    audioManager.playSound("resources/audio/sfx/mainmenu_mouseover.ogg", AudioType.SFX);
+                }
+            }
+            
+            // Enter to confirm current selection
+            if (IsKeyPressed(KeyboardKey.KEY_ENTER)) {
+                if (selectedOption == 1) {
+                    // Yes selected - quit
+                    dialogState = QuitDialogState.CONFIRMED;
+                    showingGoodbye = true;
+                    goodbyeTimer = 0.0f;
+                    
+                    if (audioManager !is null) {
+                        audioManager.playSound("resources/audio/sfx/menuclick.ogg", AudioType.SFX);
+                        audioManager.playSound("resources/audio/vox/goodbye.ogg", AudioType.SFX);
+                    }
+                    
+                    writeln("Quit confirmed via Enter - showing goodbye message");
+                } else {
+                    // No selected - cancel
+                    hide();
+                }
+            }
+            
+            // Escape to cancel (go back)
+            if (IsKeyPressed(KeyboardKey.KEY_ESCAPE)) {
+                hide();
+            }
+            
+            // Legacy direct keys for quick access (optional)
+            if (IsKeyPressed(KeyboardKey.KEY_Y)) {
+                selectedOption = 1; // Auto-select Yes
                 dialogState = QuitDialogState.CONFIRMED;
                 showingGoodbye = true;
                 goodbyeTimer = 0.0f;
                 
                 if (audioManager !is null) {
+                    audioManager.playSound("resources/audio/sfx/menuclick.ogg", AudioType.SFX);
                     audioManager.playSound("resources/audio/vox/goodbye.ogg", AudioType.SFX);
                 }
                 
-                writeln("Quit confirmed via keyboard - showing goodbye message");
+                writeln("Quit confirmed via Y key - showing goodbye message");
             } else if (IsKeyPressed(KeyboardKey.KEY_N)) {
-                // No, cancel
+                selectedOption = 0; // Auto-select No
                 hide();
             }
         }
@@ -359,12 +419,11 @@ class QuitDialog {
                     Colors.WHITE
                 );
                 
-                // Draw buttons
-                drawButton(yesButtonRect, "YES", yesButtonHovered);
-                drawButton(noButtonRect, "NO", noButtonHovered);
+                // Draw toggle
+                drawToggle();
                 
                 // Draw keyboard hints
-                string hint = "Press Y for Yes, N for No";
+                string hint = "Left/Right or A/D to navigate, Enter to confirm, ESC to cancel";
                 float hintFontSize = 14.0f;
                 Vector2 hintSize = MeasureTextEx(fontFamily[2], hint.toStringz(), hintFontSize, 1.0f);
                 Vector2 hintPos = Vector2(
@@ -384,56 +443,120 @@ class QuitDialog {
         }
     }
     
-    private void drawButton(Rectangle buttonRect, string text, bool isHovered) {
-        Color buttonColor = isHovered ? Color(100, 150, 100, 255) : Color(70, 70, 70, 255);
-        Color textColor = isHovered ? Colors.YELLOW : Colors.WHITE;
-        
-        if (dialogButtonTexture.id != 0) {
-            // First draw the base button texture (always use the non-hover version as base)
+    private void drawToggle() {
+        if (toggleTexture.id != 0) {
+            // Draw the toggle texture
             DrawTexturePro(
-                dialogButtonTexture,
-                Rectangle(0, 0, dialogButtonTexture.width, dialogButtonTexture.height),
-                buttonRect,
+                toggleTexture,
+                Rectangle(0, 0, toggleTexture.width, toggleTexture.height),
+                toggleRect,
                 Vector2(0, 0),
                 0.0f,
                 Colors.WHITE
             );
             
-            // If hovered, draw the glow texture with additive blending
-            if (isHovered && dialogButtonHoverTexture.id != 0) {
+            // Add highlight effects for hover states using additive blending
+            if (noSideHovered || yesSideHovered) {
                 BeginBlendMode(BlendMode.BLEND_ADDITIVE);
-                DrawTexturePro(
-                    dialogButtonHoverTexture,
-                    Rectangle(0, 0, dialogButtonHoverTexture.width, dialogButtonHoverTexture.height),
-                    buttonRect,
-                    Vector2(0, 0),
-                    0.0f,
-                    Colors.WHITE
-                );
+                
+                Color highlightColor;
+                Rectangle highlightRect;
+                
+                if (noSideHovered) {
+                    // Soft red highlight for NO side
+                    highlightColor = Color(150, 50, 50, 80);
+                    highlightRect = Rectangle(
+                        noSideRect.x + 4,
+                        noSideRect.y + 4,
+                        noSideRect.width - 8,
+                        noSideRect.height - 8
+                    );
+                } else if (yesSideHovered) {
+                    // Soft green highlight for YES side
+                    highlightColor = Color(50, 150, 50, 80);
+                    highlightRect = Rectangle(
+                        yesSideRect.x + 4,
+                        yesSideRect.y + 4,
+                        yesSideRect.width - 8,
+                        yesSideRect.height - 8
+                    );
+                }
+                
+                DrawRectangleRounded(highlightRect, 0.3f, 8, highlightColor);
                 EndBlendMode();
             }
+            
+            // Draw "No" and "Yes" text labels over the toggle
+            float textSize = 24.0f;
+            
+            // "No" text (left side)
+            string noText = "No";
+            Vector2 noTextMeasure = MeasureTextEx(fontFamily[1], noText.toStringz(), textSize, 1.0f);
+            Vector2 noTextPos = Vector2(
+                noSideRect.x + (noSideRect.width - noTextMeasure.x) / 2.0f,
+                noSideRect.y + (noSideRect.height - noTextMeasure.y) / 2.0f
+            );
+            
+            // Color changes based on hover
+            Color noTextColor = noSideHovered ? Color(255, 200, 200, 255) : Color(220, 220, 220, 255);
+            
+            // Draw text shadow first
+            DrawTextEx(fontFamily[1], noText.toStringz(), 
+                      Vector2(noTextPos.x + 2, noTextPos.y + 2), textSize, 1.0f, 
+                      Color(0, 0, 0, 180));
+            
+            // Draw main text
+            DrawTextEx(fontFamily[1], noText.toStringz(), noTextPos, textSize, 1.0f, noTextColor);
+            
+            // "Yes" text (right side)
+            string yesText = "Yes";
+            Vector2 yesTextMeasure = MeasureTextEx(fontFamily[1], yesText.toStringz(), textSize, 1.0f);
+            Vector2 yesTextPos = Vector2(
+                yesSideRect.x + (yesSideRect.width - yesTextMeasure.x) / 2.0f,
+                yesSideRect.y + (yesSideRect.height - yesTextMeasure.y) / 2.0f
+            );
+            
+            // Color changes based on hover
+            Color yesTextColor = yesSideHovered ? Color(200, 255, 200, 255) : Color(220, 220, 220, 255);
+            
+            // Draw text shadow first
+            DrawTextEx(fontFamily[1], yesText.toStringz(), 
+                      Vector2(yesTextPos.x + 2, yesTextPos.y + 2), textSize, 1.0f, 
+                      Color(0, 0, 0, 180));
+            
+            // Draw main text
+            DrawTextEx(fontFamily[1], yesText.toStringz(), yesTextPos, textSize, 1.0f, yesTextColor);
+            
         } else {
-            // Use fallback rectangles
-            DrawRectangleRounded(buttonRect, 0.2f, 6, buttonColor);
-            DrawRectangleRoundedLinesEx(buttonRect, 0.2f, 6, 1.0f, Colors.GRAY);
+            // Fallback: draw two separate rectangles for NO and YES
+            Color noColor = noSideHovered ? Color(180, 100, 100, 255) : Color(120, 120, 120, 255);
+            Color yesColor = yesSideHovered ? Color(100, 180, 100, 255) : Color(120, 120, 120, 255);
+            
+            DrawRectangleRounded(noSideRect, 0.1f, 6, noColor);
+            DrawRectangleRounded(yesSideRect, 0.1f, 6, yesColor);
+            
+            // Draw border
+            DrawRectangleRoundedLinesEx(toggleRect, 0.1f, 6, 2.0f, Colors.GRAY);
+            
+            // Draw text labels for fallback
+            float fontSize = 20.0f;
+            
+            // NO text
+            Vector2 noTextSize = MeasureTextEx(fontFamily[1], "NO".toStringz(), fontSize, 1.0f);
+            Vector2 noTextPos = Vector2(
+                noSideRect.x + (noSideRect.width - noTextSize.x) / 2.0f,
+                noSideRect.y + (noSideRect.height - noTextSize.y) / 2.0f
+            );
+            DrawTextEx(fontFamily[1], "NO".toStringz(), noTextPos, fontSize, 1.0f, Colors.WHITE);
+            
+            // YES text  
+            Vector2 yesTextSize = MeasureTextEx(fontFamily[1], "YES".toStringz(), fontSize, 1.0f);
+            Vector2 yesTextPos = Vector2(
+                yesSideRect.x + (yesSideRect.width - yesTextSize.x) / 2.0f,
+                yesSideRect.y + (yesSideRect.height - yesTextSize.y) / 2.0f
+            );
+            DrawTextEx(fontFamily[1], "YES".toStringz(), yesTextPos, fontSize, 1.0f, Colors.WHITE);
         }
-        
-        // Draw button text
-        float buttonFontSize = 20.0f;
-        Vector2 textSize = MeasureTextEx(fontFamily[1], text.toStringz(), buttonFontSize, 1.0f);
-        Vector2 textPos = Vector2(
-            buttonRect.x + (buttonRect.width - textSize.x) / 2.0f,
-            buttonRect.y + (buttonRect.height - textSize.y) / 2.0f
-        );
-        
-        DrawTextEx(
-            fontFamily[1],
-            text.toStringz(),
-            textPos,
-            buttonFontSize,
-            1.0f,
-            textColor
-        );
     }
     
     void unload() {

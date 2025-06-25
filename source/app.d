@@ -65,6 +65,10 @@ void main() {
     InitAudioDevice(); // Initialize audio device first
     InitWindow(1600, 900, "Bejeweled 2 Remastered"); // Actual window size
     SetTargetFPS(60);
+    
+    // Disable default ESC key behavior to prevent window closing
+    SetExitKey(KeyboardKey.KEY_NULL); // Disable default exit key (ESC)
+    
     // ToggleBorderlessWindowed(); // Initial state can be set here if desired, or managed by options
 
     // Set the default game mode
@@ -134,8 +138,17 @@ void main() {
     float lastTime = 0;
     float currentTime = 0;
     float frameTime = 0;
+    bool shouldQuit = false; // Manual quit flag
 
-    while(!WindowShouldClose()) {
+    while(!shouldQuit) {
+        // Check for window close request (X button, Alt+F4, etc.) but NOT ESC
+        if (WindowShouldClose()) {
+            // Only quit if it's not caused by ESC key
+            // WindowShouldClose() returns true for various reasons, but since we disabled ESC,
+            // it should only be true for legitimate close requests (X button, Alt+F4, etc.)
+            shouldQuit = true;
+            break;
+        }
         // Calculate frame time for performance monitoring
         currentTime = GetTime();
         frameTime = currentTime - lastTime;
