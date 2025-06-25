@@ -104,6 +104,12 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
     // Track music style changes
     private int originalMusicStyle = -1; // Store the music style when options menu is opened
 
+    // Keyboard navigation variables
+    private int selectedOptionIndex = -1; // -1=no selection, then indexed based on current category options
+    private bool keyboardNavigationEnabled = false; // Enable when user first presses a navigation key
+    private Vector2 lastMousePosition = Vector2(-1, -1); // Track mouse movement to override keyboard selection
+    private bool justEnteredOptions = false; // Flag to prevent immediate Enter activation when entering options
+
     public this() {
         memoryManager = MemoryManager.instance(); // Corrected: use instance()
         audioManager = AudioManager.getInstance();  // Corrected: use getInstance()
@@ -297,6 +303,16 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
         if (!_isActive) return;
 
         Vector2 mousePos = GetMousePositionVirtual();
+        
+        // Track mouse movement to detect when to override keyboard navigation
+        bool mouseHasMoved = false;
+        if (lastMousePosition.x != -1 && lastMousePosition.y != -1) {
+            float mouseMoveDelta = Vector2Distance(mousePos, lastMousePosition);
+            if (mouseMoveDelta > 2.0f) { // Mouse moved more than 2 pixels
+                mouseHasMoved = true;
+            }
+        }
+        lastMousePosition = mousePos;
 
         // Handle mouse button release for all sliders
         if (IsMouseButtonReleased(MouseButton.MOUSE_BUTTON_LEFT)) {
@@ -385,14 +401,99 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
             }
         }
 
-        // Category navigation with keys
+        // Enhanced keyboard navigation for categories and options
         bool categoryChangedByKeyboard = false;
-        if (IsKeyPressed(KeyboardKey.KEY_UP)) {
-            selectedCategoryIndex = cast(int)((selectedCategoryIndex - 1 + optionCategories.length) % optionCategories.length);
-            categoryChangedByKeyboard = true;
-        } else if (IsKeyPressed(KeyboardKey.KEY_DOWN)) {
-            selectedCategoryIndex = cast(int)((selectedCategoryIndex + 1) % optionCategories.length);
-            categoryChangedByKeyboard = true;
+        bool optionNavigationUsed = false;
+        
+        // Clear the justEnteredOptions flag if any navigation key is pressed
+        if (IsKeyPressed(KeyboardKey.KEY_UP) || IsKeyPressed(KeyboardKey.KEY_DOWN) || 
+            IsKeyPressed(KeyboardKey.KEY_LEFT) || IsKeyPressed(KeyboardKey.KEY_RIGHT) ||
+            IsKeyPressed(KeyboardKey.KEY_W) || IsKeyPressed(KeyboardKey.KEY_S) ||
+            IsKeyPressed(KeyboardKey.KEY_A) || IsKeyPressed(KeyboardKey.KEY_D)) {
+            justEnteredOptions = false;
+        }
+        
+        // Determine navigation mode: if no option is selected, navigate categories; otherwise navigate options
+        bool navigatingCategories = (selectedOptionIndex < 0);
+        
+        if (navigatingCategories) {
+            // Category navigation with up/down keys (vertical tabs)
+            if (IsKeyPressed(KeyboardKey.KEY_UP) || IsKeyPressed(KeyboardKey.KEY_W)) {
+                selectedCategoryIndex = cast(int)((selectedCategoryIndex - 1 + optionCategories.length) % optionCategories.length);
+                categoryChangedByKeyboard = true;
+                keyboardNavigationEnabled = true;
+            } else if (IsKeyPressed(KeyboardKey.KEY_DOWN) || IsKeyPressed(KeyboardKey.KEY_S)) {
+                selectedCategoryIndex = cast(int)((selectedCategoryIndex + 1) % optionCategories.length);
+                categoryChangedByKeyboard = true;
+                keyboardNavigationEnabled = true;
+            }
+            
+            // Right arrow or Enter to move from categories to options
+            if (IsKeyPressed(KeyboardKey.KEY_RIGHT) || IsKeyPressed(KeyboardKey.KEY_D) || IsKeyPressed(KeyboardKey.KEY_ENTER)) {
+                keyboardNavigationEnabled = true;
+                selectedOptionIndex = 0; // Start at first option
+                justEnteredOptions = true; // Set flag to prevent immediate Enter activation
+                optionNavigationUsed = true;
+            }
+        } else {
+            // Option navigation within current category
+            if (IsKeyPressed(KeyboardKey.KEY_UP) || IsKeyPressed(KeyboardKey.KEY_W)) {
+                keyboardNavigationEnabled = true;
+                int maxOptions = getMaxOptionsForCategory(selectedCategoryIndex);
+                if (selectedOptionIndex <= 0) {
+                    selectedOptionIndex = maxOptions - 1; // Wrap to bottom
+                } else {
+                    selectedOptionIndex--;
+                }
+                optionNavigationUsed = true;
+            } else if (IsKeyPressed(KeyboardKey.KEY_DOWN) || IsKeyPressed(KeyboardKey.KEY_S)) {
+                keyboardNavigationEnabled = true;
+                int maxOptions = getMaxOptionsForCategory(selectedCategoryIndex);
+                if (selectedOptionIndex >= maxOptions - 1) {
+                    selectedOptionIndex = 0; // Wrap to top
+                } else {
+                    selectedOptionIndex++;
+                }
+                optionNavigationUsed = true;
+            }
+            
+            // Left arrow or Escape to go back to category navigation
+            if (IsKeyPressed(KeyboardKey.KEY_LEFT) || IsKeyPressed(KeyboardKey.KEY_A) || IsKeyPressed(KeyboardKey.KEY_ESCAPE)) {
+                // For Escape, always go back to categories
+                if (IsKeyPressed(KeyboardKey.KEY_ESCAPE)) {
+                    selectedOptionIndex = -1;
+                    keyboardNavigationEnabled = true;
+                } else {
+                    // For Left/A, check if we're trying to adjust a value first
+                    if (!handleOptionValueChange(selectedOptionIndex, false)) { // false = decrease/left
+                        // If no value was adjusted, go back to category navigation
+                        selectedOptionIndex = -1;
+                        keyboardNavigationEnabled = true;
+                    }
+                }
+            }
+        }
+        
+        // Handle right arrow for adjusting values (sliders, arrows) when in option navigation mode
+        if (IsKeyPressed(KeyboardKey.KEY_RIGHT) && keyboardNavigationEnabled && selectedOptionIndex >= 0 && !IsKeyPressed(KeyboardKey.KEY_D)) {
+            handleOptionValueChange(selectedOptionIndex, true); // true = increase/right
+        }
+        
+        // Handle Enter key to activate/toggle selected option (only if not just entered options)
+        if (IsKeyPressed(KeyboardKey.KEY_ENTER) && keyboardNavigationEnabled && selectedOptionIndex >= 0 && !justEnteredOptions) {
+            handleOptionActivation(selectedOptionIndex);
+        }
+        
+        // Handle Escape key to close options menu (only when in category navigation mode)
+        if (IsKeyPressed(KeyboardKey.KEY_ESCAPE) && navigatingCategories) {
+            hide();
+            return;
+        }
+        
+        // Mouse override: clear keyboard selection when mouse moves and hovers over something
+        if (mouseHasMoved && keyboardNavigationEnabled) {
+            selectedOptionIndex = -1; // Clear keyboard selection when mouse moves
+            justEnteredOptions = false; // Clear the flag when mouse is used
         }
 
         if (categoryChangedByKeyboard && audioManager !is null) {
@@ -582,7 +683,15 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
             Rectangle tabRect = Rectangle(panelX + 20, categoryTabYStart + (i * 60), panelWidth * 0.2f - 40, 50);
             Color tabColor = (i == selectedCategoryIndex) ? Color(70, 70, 70, 255) : Color(40, 40, 40, 255);
             DrawRectangleRec(tabRect, tabColor);
-            DrawRectangleLinesEx(tabRect, 2, (i == selectedCategoryIndex) ? Colors.YELLOW : Colors.DARKGRAY);
+            
+            // Special highlight for keyboard navigation in category mode
+            if (keyboardNavigationEnabled && selectedOptionIndex < 0 && i == selectedCategoryIndex) {
+                DrawRectangleRec(tabRect, Color(135, 206, 235, 100)); // Sky blue highlight for keyboard navigation
+                DrawRectangleLinesEx(tabRect, 3, Color(135, 206, 235, 255)); // Thicker sky blue border
+            } else {
+                DrawRectangleLinesEx(tabRect, 2, (i == selectedCategoryIndex) ? Colors.YELLOW : Colors.DARKGRAY);
+            }
+            
             DrawTextEx(app.fontFamily[1], category.toStringz(), Vector2(tabRect.x + 15, tabRect.y + 15), 24, 1, Colors.WHITE);
         }
 
@@ -629,18 +738,20 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
 
         switch (optionCategories[selectedCategoryIndex]) {
             case "Video":
+                // Option 0: Fullscreen
+                if (keyboardNavigationEnabled && selectedOptionIndex == 0) {
+                    DrawRectangleRec(Rectangle(labelXPos - 10, yPos - 5, width - 60, 34), Color(135, 206, 235, 100)); // Sky blue highlight
+                }
                 DrawTextEx(app.fontFamily[1], "Fullscreen:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
                 fullscreenToggleRect = Rectangle(interactableXPos, yPos, 100, 24); // Assign to class member if needed in update
                 DrawRectangleRec(fullscreenToggleRect, currentOptions.fullscreen ? Colors.LIME : Colors.MAROON);
                 DrawTextEx(app.fontFamily[2], (currentOptions.fullscreen ? "ON" : "OFF").toStringz(), Vector2(interactableXPos + 35, yPos + 2), 20, 1, Colors.BLACK);
                 yPos += 40;
 
-                DrawTextEx(app.fontFamily[1], "VSync:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
-                vsyncToggleRect = Rectangle(interactableXPos, yPos, 100, 24); // Assign to class member
-                DrawRectangleRec(vsyncToggleRect, currentOptions.vsync ? Colors.LIME : Colors.MAROON);
-                DrawTextEx(app.fontFamily[2], (currentOptions.vsync ? "ON" : "OFF").toStringz(), Vector2(interactableXPos + 35, yPos + 2), 20, 1, Colors.BLACK);
-                yPos += 40;
-                
+                // Option 1: Resolution
+                if (keyboardNavigationEnabled && selectedOptionIndex == 1) {
+                    DrawRectangleRec(Rectangle(labelXPos - 10, yPos - 5, width - 60, 34), Color(135, 206, 235, 100)); // Sky blue highlight
+                }
                 DrawTextEx(app.fontFamily[1], "Resolution:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
                 // Arrow positions for resolution
                 float resValueTextX = interactableXPos - (MeasureTextEx(app.fontFamily[2], supportedResolutions[currentResolutionIndex].toStringz(), 24, 1).x / 2); // Center the text
@@ -654,6 +765,16 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
                 DrawTextEx(app.fontFamily[2], ">".toStringz(), Vector2(resolutionRightArrowRect.x + 10, resolutionRightArrowRect.y + 2), 24, 1, Colors.WHITE);
                 yPos += 40;
                 
+                // Option 2: VSync
+                if (keyboardNavigationEnabled && selectedOptionIndex == 2) {
+                    DrawRectangleRec(Rectangle(labelXPos - 10, yPos - 5, width - 60, 34), Color(135, 206, 235, 100)); // Sky blue highlight
+                }
+                DrawTextEx(app.fontFamily[1], "VSync:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
+                vsyncToggleRect = Rectangle(interactableXPos, yPos, 100, 24); // Assign to class member
+                DrawRectangleRec(vsyncToggleRect, currentOptions.vsync ? Colors.LIME : Colors.MAROON);
+                DrawTextEx(app.fontFamily[2], (currentOptions.vsync ? "ON" : "OFF").toStringz(), Vector2(interactableXPos + 35, yPos + 2), 20, 1, Colors.BLACK);
+                yPos += 40;
+                
                 if (currentOptions.hasPendingResolutionChange) {
                     DrawTextEx(app.fontFamily[2], "* Display changes will apply on game restart".toStringz(), 
                                Vector2(labelXPos, yPos + 2), 18, 1, Colors.ORANGE);
@@ -662,6 +783,10 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
 
                 break;
             case "Audio":
+                // Option 0: Master Volume
+                if (keyboardNavigationEnabled && selectedOptionIndex == 0) {
+                    DrawRectangleRec(Rectangle(labelXPos - 10, yPos - 5, width - 60, 34), Color(135, 206, 235, 100)); // Sky blue highlight
+                }
                 DrawTextEx(app.fontFamily[1], "Master Volume:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
                 
                 // Master volume slider
@@ -684,6 +809,10 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
                 DrawTextEx(app.fontFamily[2], "[1]".toStringz(), Vector2(labelXPos - 30, yPos + 2), 18, 1, Colors.DARKGRAY);
                 yPos += 40;
 
+                // Option 1: Music Volume
+                if (keyboardNavigationEnabled && selectedOptionIndex == 1) {
+                    DrawRectangleRec(Rectangle(labelXPos - 10, yPos - 5, width - 60, 34), Color(135, 206, 235, 100)); // Sky blue highlight
+                }
                 DrawTextEx(app.fontFamily[1], "Music Volume:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
                 
                 // Music volume slider
@@ -706,6 +835,10 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
                 DrawTextEx(app.fontFamily[2], "[2]".toStringz(), Vector2(labelXPos - 30, yPos + 2), 18, 1, Colors.DARKGRAY);
                 yPos += 40;
 
+                // Option 2: SFX Volume
+                if (keyboardNavigationEnabled && selectedOptionIndex == 2) {
+                    DrawRectangleRec(Rectangle(labelXPos - 10, yPos - 5, width - 60, 34), Color(135, 206, 235, 100)); // Sky blue highlight
+                }
                 DrawTextEx(app.fontFamily[1], "SFX Volume:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
                 
                 // SFX volume slider
@@ -728,57 +861,46 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
                 DrawTextEx(app.fontFamily[2], "[3]".toStringz(), Vector2(labelXPos - 30, yPos + 2), 18, 1, Colors.DARKGRAY);
                 yPos += 40;
                 
-                // Add keyboard control hint
-                DrawTextEx(app.fontFamily[2], "Press 1-3 to increase, Shift+1-3 to decrease volume".toStringz(), 
-                           Vector2(labelXPos, yPos + 10), 18, 1, Colors.LIGHTGRAY);
-                yPos += 30;
-                
-                // Add keyboard control hints
+                // Skip the keyboard control hints to save space
                 yPos += 20;
-                DrawTextEx(app.fontFamily[2], "Keyboard Controls:".toStringz(), Vector2(labelXPos, yPos), 20, 1, Colors.LIGHTGRAY);
-                yPos += 25;
-                DrawTextEx(app.fontFamily[2], "Press 1: Adjust Master Volume (+/-)".toStringz(), Vector2(labelXPos + 20, yPos), 18, 1, Colors.LIGHTGRAY);
-                yPos += 20;
-                DrawTextEx(app.fontFamily[2], "Press 2: Adjust Music Volume (+/-)".toStringz(), Vector2(labelXPos + 20, yPos), 18, 1, Colors.LIGHTGRAY);
-                yPos += 20;
-                DrawTextEx(app.fontFamily[2], "Press 3: Adjust SFX Volume (+/-)".toStringz(), Vector2(labelXPos + 20, yPos), 18, 1, Colors.LIGHTGRAY);
-                yPos += 20;
-                DrawTextEx(app.fontFamily[2], "Hold Shift + Number: Decrease Volume".toStringz(), Vector2(labelXPos + 20, yPos), 18, 1, Colors.LIGHTGRAY);
-                yPos += 40;
 
-                DrawTextEx(app.fontFamily[1], "Music Style:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
-                string musicStyleStr = (currentOptions.musicStyle == 1) ? "Original" : "Arranged";
-                if (currentOptions.musicStyle != 1 && currentOptions.musicStyle != 2) currentOptions.musicStyle = 2; // Default to Arranged if invalid
+                // Skip music style option since it's redundant with Gameplay - remove these lines
+                // Leave space for future audio options
 
-                float musicStyleTextX = interactableXPos - (MeasureTextEx(app.fontFamily[2], musicStyleStr.toStringz(), 24, 1).x / 2); // Center the text
-                musicStyleLeftArrowRect = Rectangle(musicStyleTextX - arrowButtonWidth - arrowSpacing, yPos, arrowButtonWidth, arrowButtonHeight);
-                musicStyleRightArrowRect = Rectangle(musicStyleTextX + MeasureTextEx(app.fontFamily[2], musicStyleStr.toStringz(), 24, 1).x + arrowSpacing, yPos, arrowButtonWidth, arrowButtonHeight);
-
-                DrawRectangleRec(musicStyleLeftArrowRect, Colors.DARKGRAY);
-                DrawTextEx(app.fontFamily[2], "<".toStringz(), Vector2(musicStyleLeftArrowRect.x + 10, musicStyleLeftArrowRect.y + 2), 24, 1, Colors.WHITE);
-                DrawTextEx(app.fontFamily[2], musicStyleStr.toStringz(), Vector2(musicStyleTextX, yPos + 2), 24, 1, Colors.YELLOW);
-                DrawRectangleRec(musicStyleRightArrowRect, Colors.DARKGRAY);
-                DrawTextEx(app.fontFamily[2], ">".toStringz(), Vector2(musicStyleRightArrowRect.x + 10, musicStyleRightArrowRect.y + 2), 24, 1, Colors.WHITE);
-                yPos += 40;
-
+                // Option 3: Mute All
+                if (keyboardNavigationEnabled && selectedOptionIndex == 3) {
+                    DrawRectangleRec(Rectangle(labelXPos - 10, yPos - 5, width - 60, 34), Color(135, 206, 235, 100)); // Sky blue highlight
+                }
                 DrawTextEx(app.fontFamily[1], "Mute All:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
                 muteToggleRect = Rectangle(interactableXPos, yPos, 100, 24); // Assign to class member
                 DrawRectangleRec(muteToggleRect, currentOptions.mute ? Colors.LIME : Colors.MAROON);
                 DrawTextEx(app.fontFamily[2], (currentOptions.mute ? "ON" : "OFF").toStringz(), Vector2(interactableXPos + 35, yPos + 2), 20, 1, Colors.BLACK);
                 break;
             case "Gameplay":
+                // Option 0: Auto Save
+                if (keyboardNavigationEnabled && selectedOptionIndex == 0) {
+                    DrawRectangleRec(Rectangle(labelXPos - 10, yPos - 5, width - 60, 34), Color(135, 206, 235, 100)); // Sky blue highlight
+                }
                 DrawTextEx(app.fontFamily[1], "Auto Save:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
                 autoSaveToggleRect = Rectangle(interactableXPos, yPos, 100, 24); // Assign to class member
                 DrawRectangleRec(autoSaveToggleRect, currentOptions.autoSave ? Colors.LIME : Colors.MAROON);
                 DrawTextEx(app.fontFamily[2], (currentOptions.autoSave ? "ON" : "OFF").toStringz(), Vector2(interactableXPos + 35, yPos + 2), 20, 1, Colors.BLACK);
                 yPos += 40;
 
+                // Option 1: Random Backdrops
+                if (keyboardNavigationEnabled && selectedOptionIndex == 1) {
+                    DrawRectangleRec(Rectangle(labelXPos - 10, yPos - 5, width - 60, 34), Color(135, 206, 235, 100)); // Sky blue highlight
+                }
                 DrawTextEx(app.fontFamily[1], "Random Backdrops:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
                 randomBackdropsToggleRect = Rectangle(interactableXPos, yPos, 100, 24); // Assign to class member
                 DrawRectangleRec(randomBackdropsToggleRect, currentOptions.randomBackdrops ? Colors.LIME : Colors.MAROON);
                 DrawTextEx(app.fontFamily[2], (currentOptions.randomBackdrops ? "ON" : "OFF").toStringz(), Vector2(interactableXPos + 35, yPos + 2), 20, 1, Colors.BLACK);
                 yPos += 40;
 
+                // Option 2: Gem Style
+                if (keyboardNavigationEnabled && selectedOptionIndex == 2) {
+                    DrawRectangleRec(Rectangle(labelXPos - 10, yPos - 5, width - 60, 34), Color(135, 206, 235, 100)); // Sky blue highlight
+                }
                 DrawTextEx(app.fontFamily[1], "Gem Style:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
                 string gemStyleStr;
                 switch(currentOptions.gemStyle) {
@@ -798,6 +920,10 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
                 DrawTextEx(app.fontFamily[2], ">".toStringz(), Vector2(gemStyleRightArrowRect.x + 10, gemStyleRightArrowRect.y + 2), 24, 1, Colors.WHITE);
                 yPos += 40;
 
+                // Option 3: System Mode
+                if (keyboardNavigationEnabled && selectedOptionIndex == 3) {
+                    DrawRectangleRec(Rectangle(labelXPos - 10, yPos - 5, width - 60, 34), Color(135, 206, 235, 100)); // Sky blue highlight
+                }
                 DrawTextEx(app.fontFamily[1], "System Mode:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
                 string systemModeStr = (currentOptions.systemMode == 1) ? "Original" : "Arranged";
                 if (currentOptions.systemMode != 1 && currentOptions.systemMode != 2) currentOptions.systemMode = 1; // Default to 1 if invalid
@@ -813,6 +939,10 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
                 DrawTextEx(app.fontFamily[2], ">".toStringz(), Vector2(systemModeRightArrowRect.x + 10, systemModeRightArrowRect.y + 2), 24, 1, Colors.WHITE);
                 break;
             case "Controls":
+                // Option 0: Coming soon message (no options yet, but highlighting for consistency)
+                if (keyboardNavigationEnabled && selectedOptionIndex == 0) {
+                    DrawRectangleRec(Rectangle(labelXPos - 10, yPos - 5, width - 60, 34), Color(135, 206, 235, 100)); // Sky blue highlight
+                }
                 DrawTextEx(app.fontFamily[1], "Controls configuration coming soon...".toStringz(), Vector2(labelXPos, yPos + 2), 22, 1, Colors.LIGHTGRAY);
                 break;
             default:
@@ -1156,5 +1286,215 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
         writeln("  System Mode: ", currentOptions.systemMode);
         writeln("  Music Style: ", currentOptions.musicStyle); // Added Music Style
         writeln("  Player Name: ", currentOptions.playerName); // Added Player Name
+    }
+    
+    // Helper method to get the number of options for a given category
+    private int getMaxOptionsForCategory(int categoryIndex) {
+        switch (categoryIndex) {
+            case 0: // Video
+                return 3; // Fullscreen, Resolution, VSync
+            case 1: // Audio
+                return 4; // Master Volume, Music Volume, SFX Volume, Mute
+            case 2: // Gameplay
+                return 4; // Auto Save, Random Backdrops, Gem Style, System Mode
+            case 3: // Controls
+                return 1; // Controls info/placeholder
+            default:
+                return 0;
+        }
+    }
+    
+    // Helper method to handle keyboard activation of the selected option
+    private void handleOptionActivation(int optionIndex) {
+        if (audioManager !is null) {
+            audioManager.playSound("resources/audio/sfx/menuclick.ogg", AudioType.SFX);
+        }
+        
+        switch (selectedCategoryIndex) {
+            case 0: // Video options
+                switch (optionIndex) {
+                    case 0: // Fullscreen toggle
+                        currentOptions.fullscreen = !currentOptions.fullscreen;
+                        currentOptions.hasPendingResolutionChange = true;
+                        break;
+                    case 1: // Resolution (cycle to next)
+                        currentResolutionIndex = cast(int)((currentResolutionIndex + 1) % cast(int)supportedResolutions.length);
+                        currentOptions.resolution = supportedResolutions[currentResolutionIndex];
+                        currentOptions.hasPendingResolutionChange = true;
+                        break;
+                    case 2: // VSync toggle
+                        currentOptions.vsync = !currentOptions.vsync;
+                        applyVideoSettings(true); // Apply VSync immediately, skip resolution changes
+                        break;
+                    default: break;
+                }
+                break;
+                
+            case 1: // Audio options
+                switch (optionIndex) {
+                    case 0: // Master Volume (adjust by 10)
+                        currentOptions.masterVolume = min(100, currentOptions.masterVolume + 10);
+                        if (currentOptions.masterVolume > 100) currentOptions.masterVolume = 0; // Wrap around
+                        applyAudioSettings();
+                        break;
+                    case 1: // Music Volume (adjust by 10)
+                        currentOptions.musicVolume = min(100, currentOptions.musicVolume + 10);
+                        if (currentOptions.musicVolume > 100) currentOptions.musicVolume = 0; // Wrap around
+                        applyAudioSettings();
+                        break;
+                    case 2: // SFX Volume (adjust by 10)
+                        currentOptions.sfxVolume = min(100, currentOptions.sfxVolume + 10);
+                        if (currentOptions.sfxVolume > 100) currentOptions.sfxVolume = 0; // Wrap around
+                        applyAudioSettings();
+                        break;
+                    case 3: // Mute toggle
+                        currentOptions.mute = !currentOptions.mute;
+                        applyAudioSettings();
+                        break;
+                    default: break;
+                }
+                break;
+                
+            case 2: // Gameplay options
+                switch (optionIndex) {
+                    case 0: // Auto Save toggle
+                        currentOptions.autoSave = !currentOptions.autoSave;
+                        break;
+                    case 1: // Random Backdrops toggle
+                        currentOptions.randomBackdrops = !currentOptions.randomBackdrops;
+                        break;
+                    case 2: // Gem Style (cycle)
+                        currentOptions.gemStyle = (currentOptions.gemStyle % 3) + 1; // 1, 2, 3, then back to 1
+                        break;
+                    case 3: // System Mode (cycle)
+                        currentOptions.systemMode = (currentOptions.systemMode % 2) + 1; // 1, 2, then back to 1
+                        break;
+                    default: break;
+                }
+                break;
+                
+            case 3: // Controls
+                // Placeholder for controls configuration
+                break;
+                
+            default: break;
+        }
+        
+        // Save options after any change
+        saveOptionsToFile();
+    }
+
+    // Helper method to handle keyboard value changes (left/right arrows)
+    private bool handleOptionValueChange(int optionIndex, bool increase) {
+        if (audioManager !is null) {
+            audioManager.playSound("resources/audio/sfx/menubeep.ogg", AudioType.SFX);
+        }
+        
+        bool valueChanged = false;
+        
+        switch (selectedCategoryIndex) {
+            case 0: // Video options
+                switch (optionIndex) {
+                    case 0: // Fullscreen toggle (same as Enter)
+                        currentOptions.fullscreen = !currentOptions.fullscreen;
+                        currentOptions.hasPendingResolutionChange = true;
+                        valueChanged = true;
+                        break;
+                    case 1: // Resolution (cycle)
+                        if (increase) {
+                            currentResolutionIndex = cast(int)((currentResolutionIndex + 1) % cast(int)supportedResolutions.length);
+                        } else {
+                            currentResolutionIndex = cast(int)((currentResolutionIndex - 1 + cast(int)supportedResolutions.length) % cast(int)supportedResolutions.length);
+                        }
+                        currentOptions.resolution = supportedResolutions[currentResolutionIndex];
+                        currentOptions.hasPendingResolutionChange = true;
+                        valueChanged = true;
+                        break;
+                    case 2: // VSync toggle (same as Enter)
+                        currentOptions.vsync = !currentOptions.vsync;
+                        applyVideoSettings(true); // Apply VSync immediately, skip resolution changes
+                        valueChanged = true;
+                        break;
+                    default: break;
+                }
+                break;
+                
+            case 1: // Audio options
+                switch (optionIndex) {
+                    case 0: // Master Volume
+                        if (increase) {
+                            currentOptions.masterVolume = min(100, currentOptions.masterVolume + 10);
+                        } else {
+                            currentOptions.masterVolume = max(0, currentOptions.masterVolume - 10);
+                        }
+                        applyAudioSettings();
+                        valueChanged = true;
+                        break;
+                    case 1: // Music Volume
+                        if (increase) {
+                            currentOptions.musicVolume = min(100, currentOptions.musicVolume + 10);
+                        } else {
+                            currentOptions.musicVolume = max(0, currentOptions.musicVolume - 10);
+                        }
+                        applyAudioSettings();
+                        valueChanged = true;
+                        break;
+                    case 2: // SFX Volume
+                        if (increase) {
+                            currentOptions.sfxVolume = min(100, currentOptions.sfxVolume + 10);
+                        } else {
+                            currentOptions.sfxVolume = max(0, currentOptions.sfxVolume - 10);
+                        }
+                        applyAudioSettings();
+                        valueChanged = true;
+                        break;
+                    case 3: // Mute toggle (same as Enter)
+                        currentOptions.mute = !currentOptions.mute;
+                        applyAudioSettings();
+                        valueChanged = true;
+                        break;
+                    default: break;
+                }
+                break;
+                
+            case 2: // Gameplay options
+                switch (optionIndex) {
+                    case 0: // Auto Save toggle (same as Enter)
+                        currentOptions.autoSave = !currentOptions.autoSave;
+                        valueChanged = true;
+                        break;
+                    case 1: // Random Backdrops toggle (same as Enter)
+                        currentOptions.randomBackdrops = !currentOptions.randomBackdrops;
+                        valueChanged = true;
+                        break;
+                    case 2: // Gem Style (cycle)
+                        if (increase) {
+                            currentOptions.gemStyle = (currentOptions.gemStyle % 3) + 1; // 1, 2, 3, then back to 1
+                        } else {
+                            currentOptions.gemStyle = ((currentOptions.gemStyle - 2 + 3) % 3) + 1; // 3, 2, 1, then back to 3
+                        }
+                        valueChanged = true;
+                        break;
+                    case 3: // System Mode (cycle)
+                        currentOptions.systemMode = (currentOptions.systemMode % 2) + 1; // Toggle between 1 and 2
+                        valueChanged = true;
+                        break;
+                    default: break;
+                }
+                break;
+                
+            case 3: // Controls
+                // Placeholder for controls configuration
+                break;
+                
+            default: break;
+        }
+        
+        // Save options after any change
+        if (valueChanged) {
+            saveOptionsToFile();
+        }
+        
+        return valueChanged;
     }
 }
