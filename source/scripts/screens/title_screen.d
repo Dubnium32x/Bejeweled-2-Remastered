@@ -230,7 +230,7 @@ class TitleScreen : IScreen {
     private int lastHoveredButton = 0; // 0=none, 1=classic, 2=action, 3=endless, 4=puzzle, 5=toggle, 6=return
     
     // Last played mode indicator
-    private float lastPlayedGlowAlpha = 0.6f; // Persistent glow alpha for last played mode
+    private float lastPlayedGlowAlpha = 0.3f; // Persistent glow alpha for last played mode
     private float lastPlayedGlowPulse = 0.0f; // Time for subtle pulsing effect
     
     // Portal effect variables
@@ -743,7 +743,7 @@ class TitleScreen : IScreen {
         cometDirection = Vector2(-1.0f, 0.0f); // Initialize with default leftward direction
         cometActive = false; // Start with comet inactive
         cometMoving = false; // Start with comet not moving
-        cometSteams = new CometSteam[200]; // Create an array for 100 comet steam effects
+        cometSteams = new CometSteam[400]; // Increased from 200 to 400 for denser comet effect
         
         // Initialize all steam particles as inactive
         for (int i = 0; i < cometSteams.length; i++) {
@@ -2964,7 +2964,7 @@ class TitleScreen : IScreen {
                 if (pulseAlpha < 0.2f) pulseAlpha = 0.2f; // Minimum visibility
                 if (pulseAlpha > 0.8f) pulseAlpha = 0.8f; // Maximum brightness
                 
-                Color lastPlayedGlowColor = Color(220, 255, 220, cast(ubyte)(255 * pulseAlpha)); // Much whiter with subtle green tint
+                Color lastPlayedGlowColor = Color(255, 255, 180, cast(ubyte)(255 * pulseAlpha)); // Much whiter with subtle yellow tint
                 
                 int currentLastPlayedMode = data.getMostRecentGameMode(); // 0=classic, 1=action, 2=endless, 3=puzzle
                 if (currentLastPlayedMode == 0) { // Classic

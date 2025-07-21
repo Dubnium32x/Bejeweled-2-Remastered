@@ -173,7 +173,7 @@ void main() {
         // --- DRAW GAME TO VIRTUAL SCREEN ---
         BeginTextureMode(virtualScreen);
             ClearBackground(Colors.BLANK); // Clear virtual screen to fully transparent
-            BeginBlendMode(BlendMode.BLEND_ALPHA); // Ensure standard alpha blending for drawing operations
+            //BeginBlendMode(BlendMode.BLEND_ALPHA); // Ensure standard alpha blending for drawing operations
             
             // The active screen (e.g., TitleScreen) is responsible for 
             // drawing its own background and elements onto this now-cleared virtual screen.
@@ -184,7 +184,7 @@ void main() {
                 screenManager.draw(); 
             } 
             
-            EndBlendMode();
+            //EndBlendMode();
         EndTextureMode();
         
         // --- DRAW VIRTUAL SCREEN TO ACTUAL WINDOW ---

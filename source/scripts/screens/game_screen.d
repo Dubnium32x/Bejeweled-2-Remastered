@@ -15,6 +15,8 @@ import world.screen_manager;
 import world.screen_states;
 import world.memory_manager;
 import world.audio_manager;
+import game.backdrop_manager;
+import game.game_board;
 
 /*
 
@@ -187,6 +189,12 @@ class GameScreen : IScreen {
     // Fonts will be filtered for quality
     private bool fontsFiltered = false;
     
+    // Backdrop manager
+    private BackdropManager backdropManager;
+    
+    // Game board
+    private GameBoard gameBoard;
+    
     // Static singleton access
     static GameScreen getInstance() {
         if (_instance is null) {
@@ -214,11 +222,30 @@ class GameScreen : IScreen {
             writeln("GameScreen: Applied bilinear filtering to fonts");
         }
         
+        // Initialize backdrop manager
+        backdropManager = BackdropManager.getInstance();
+        backdropManager.initialize();
+        
+        // Initialize game board
+        gameBoard = GameBoard.getInstance();
+        gameBoard.initialize();
+        gameBoard.generatePlayableBoard(); // Generate board with no initial matches but valid moves
+        
         isInitialized = true;
         writeln("GameScreen initialized");
     }
     
     void update(float deltaTime) {
+        // Update backdrop manager
+        if (backdropManager !is null) {
+            backdropManager.update(deltaTime);
+        }
+        
+        // Update game board
+        if (gameBoard !is null) {
+            gameBoard.update(deltaTime);
+        }
+        
         // Handle input to return to title screen for now
         if (IsKeyPressed(KeyboardKey.KEY_ESCAPE)) {
             import world.screen_manager;
@@ -227,15 +254,33 @@ class GameScreen : IScreen {
             writeln("GameScreen: ESC pressed, transitioning back to title screen with wormhole effect");
             screenManager.transitionToState(ScreenState.TITLE, TransitionType.WORMHOLE, 1.5f);
         }
+        
+        // Handle backdrop change keys (for testing)
+        if (IsKeyPressed(KeyboardKey.KEY_N) && backdropManager !is null) {
+            backdropManager.nextBackdrop();
+        }
+        if (IsKeyPressed(KeyboardKey.KEY_P) && backdropManager !is null) {
+            backdropManager.previousBackdrop();
+        }
     }
     
     void draw() {
         import app : VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT, fontFamily;
         
-        // Clear background with a dark game-like color
-        ClearBackground(Color(20, 20, 40, 255));
+        // Draw backdrop first
+        if (backdropManager !is null) {
+            backdropManager.draw();
+        } else {
+            // Fallback background color if backdrop manager fails
+            ClearBackground(Color(20, 20, 40, 255));
+        }
         
-        // Draw placeholder game screen content
+        // Draw game board
+        if (gameBoard !is null) {
+            gameBoard.draw();
+        }
+        
+        // Draw game UI over the backdrop
         DrawTextEx(fontFamily[0], "GAME SCREEN".toStringz(), 
                   Vector2(VIRTUAL_SCREEN_WIDTH / 2 - 120, 100), 32, 1, Colors.WHITE);
         
@@ -256,18 +301,59 @@ class GameScreen : IScreen {
                   28, 1, Colors.YELLOW);
         
         // Instructions
-        DrawTextEx(fontFamily[2], "Game will be implemented here...".toStringz(),
+        DrawTextEx(fontFamily[2], "Click gems to select them!".toStringz(),
                   Vector2(VIRTUAL_SCREEN_WIDTH / 2 - 200, 300), 20, 1, Colors.LIGHTGRAY);
         
-        DrawTextEx(fontFamily[2], "Press ESC to return to title screen".toStringz(),
-                  Vector2(VIRTUAL_SCREEN_WIDTH / 2 - 180, 400), 18, 1, Colors.RAYWHITE);
+        // Display score and level information
+        if (gameBoard !is null) {
+            string scoreText = "Score: " ~ gameBoard.getScore().to!string;
+            DrawTextEx(fontFamily[1], scoreText.toStringz(),
+                      Vector2(50, 100), 24, 1, Colors.WHITE);
+            
+            string levelText = "Level: " ~ gameBoard.getLevel().to!string;
+            DrawTextEx(fontFamily[1], levelText.toStringz(),
+                      Vector2(50, 140), 24, 1, Colors.WHITE);
+            
+            string targetText = "Target: " ~ gameBoard.getTargetScore().to!string;
+            DrawTextEx(fontFamily[1], targetText.toStringz(),
+                      Vector2(50, 180), 20, 1, Colors.YELLOW);
+            
+            // Progress bar
+            float progress = gameBoard.getProgress();
+            Rectangle progressBarBg = Rectangle(50, 220, 200, 20);
+            Rectangle progressBarFill = Rectangle(50, 220, 200 * progress, 20);
+            
+            DrawRectangleRec(progressBarBg, Color(60, 60, 60, 255));
+            DrawRectangleRec(progressBarFill, Color(100, 200, 100, 255));
+            DrawRectangleLinesEx(progressBarBg, 2, Colors.WHITE);
+            
+            string progressText = (cast(int)(progress * 100)).to!string ~ "%";
+            DrawTextEx(fontFamily[2], progressText.toStringz(),
+                      Vector2(55, 245), 16, 1, Colors.WHITE);
+        }
+        
+        // Show current backdrop info
+        if (backdropManager !is null) {
+            string backdropInfo = "Backdrop: " ~ backdropManager.getCurrentBackdropName() ~ 
+                                  " (" ~ (backdropManager.getCurrentBackdropIndex() + 1).to!string ~ 
+                                  "/" ~ backdropManager.getBackdropCount().to!string ~ ")";
+            DrawTextEx(fontFamily[2], backdropInfo.toStringz(),
+                      Vector2(VIRTUAL_SCREEN_WIDTH / 2 - MeasureTextEx(fontFamily[2], backdropInfo.toStringz(), 18, 1).x / 2, 500), 
+                      18, 1, Colors.LIME);
+        }
         
         // Show wormhole transition working message
         DrawTextEx(fontFamily[2], "Wormhole transition system is working!".toStringz(),
-                  Vector2(VIRTUAL_SCREEN_WIDTH / 2 - 200, 500), 18, 1, Colors.LIME);
+                  Vector2(VIRTUAL_SCREEN_WIDTH / 2 - 200, 550), 18, 1, Colors.LIME);
     }
     
     void unload() {
+        if (backdropManager !is null) {
+            backdropManager.unload();
+        }
+        if (gameBoard !is null) {
+            gameBoard.unload();
+        }
         isInitialized = false;
         fontsFiltered = false;
         writeln("GameScreen unloaded");

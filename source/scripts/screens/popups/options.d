@@ -240,6 +240,11 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
         return currentOptions.musicStyle;
     }
     
+    // Public getter for random backdrops setting
+    public bool getRandomBackdrops() {
+        return currentOptions.randomBackdrops;
+    }
+    
     // Public method to save options to file (for external calls like name entry confirmation)
     public void saveOptions() {
         saveOptionsToFile();
@@ -554,60 +559,48 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
                 }
                 break;
             case "Audio":
-                float audioYPos = initialYPos; // Start Y for audio options
-                audioYPos += 40; // After Master Volume label + slider
-                audioYPos += 40; // After Music Volume label + slider
-                audioYPos += 40; // After SFX Volume label + slider
-                // Now audioYPos is at the start of the Mute option
-                
-                muteToggleRect = Rectangle(optionsContentX + optionsContentWidth / 2, audioYPos, 100, 24); // Use same X as other toggles
-                if (CheckCollisionPointRec(mousePos, muteToggleRect)) {
-                    currentOptions.mute = !currentOptions.mute;
-                    applyAudioSettings(); // Apply immediately
-                    if (audioManager !is null) {
-                        audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX); 
-                    }
+                // Recalculate yPos for each option, matching the draw method exactly
+                // Option 0: Master Volume
+                Rectangle masterSliderRect = Rectangle(optionsContentX + optionsContentWidth / 2, yPos, sliderWidth, sliderHeight);
+                if (CheckCollisionPointRec(mousePos, masterSliderRect)) {
+                    isDraggingMasterSlider = true;
+                    updateSliderValue(masterSliderRect, mousePos.x, currentOptions.masterVolume);
+                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/menuclick.ogg", AudioType.SFX);
                 }
-
-                // Calculate the Y position for the mute toggle, mirroring drawCurrentCategoryOptionsLayout
-                float yPosForMuteClickCheck = initialYPos; 
-                yPosForMuteClickCheck += 40; // Master Volume label + slider
-                yPosForMuteClickCheck += 40; // Music Volume label + slider
-                yPosForMuteClickCheck += 40; // SFX Volume label + slider
-                
-                // Account for keyboard control hints' vertical space, as in drawCurrentCategoryOptionsLayout
-                yPosForMuteClickCheck += 30; // "Press 1-3 to increase, Shift+1-3 to decrease volume"
-                yPosForMuteClickCheck += 20; // Spacing before "Keyboard Controls:"
-                yPosForMuteClickCheck += 25; // "Keyboard Controls:" line
-                yPosForMuteClickCheck += 20; // "Press 1: Adjust Master Volume (+/-)"
-                yPosForMuteClickCheck += 20; // "Press 2: Adjust Music Volume (+/-)"
-                yPosForMuteClickCheck += 20; // "Press 3: Adjust SFX Volume (+/-)"
-                yPosForMuteClickCheck += 40; // "Hold Shift + Number: Decrease Volume" and spacing after
-                yPosForMuteClickCheck += 40; // Music Style and spacing after
-
-                // Music Style Arrows - positioned right before the mute toggle
-                float musicStyleYPos = yPosForMuteClickCheck - 40; // Music Style is 40 pixels above mute toggle
-                if (CheckCollisionPointRec(mousePos, musicStyleLeftArrowRect)) {
-                    currentOptions.musicStyle = (currentOptions.musicStyle == 1) ? 2 : 1; // Toggle between 1 (Original) and 2 (Arranged)
+                yPos += 40;
+                // Option 1: Music Volume
+                Rectangle musicSliderRect = Rectangle(optionsContentX + optionsContentWidth / 2, yPos, sliderWidth, sliderHeight);
+                if (CheckCollisionPointRec(mousePos, musicSliderRect)) {
+                    isDraggingMusicSlider = true;
+                    updateSliderValue(musicSliderRect, mousePos.x, currentOptions.musicVolume);
+                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/menuclick.ogg", AudioType.SFX);
+                }
+                yPos += 40;
+                // Option 2: SFX Volume
+                Rectangle sfxSliderRect = Rectangle(optionsContentX + optionsContentWidth / 2, yPos, sliderWidth, sliderHeight);
+                if (CheckCollisionPointRec(mousePos, sfxSliderRect)) {
+                    isDraggingEffectsSlider = true;
+                    updateSliderValue(sfxSliderRect, mousePos.x, currentOptions.sfxVolume);
+                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/menuclick.ogg", AudioType.SFX);
+                }
+                yPos += 40;
+                // Option 3: Music Style
+                string musicStyleStr = (currentOptions.musicStyle == 1) ? "Original" : "Arranged";
+                float musicStyleTextX = optionsContentX + optionsContentWidth / 2 - (MeasureTextEx(app.fontFamily[2], musicStyleStr.toStringz(), 24, 1).x / 2);
+                Rectangle musicStyleLeftRect = Rectangle(musicStyleTextX - 30 - 5, yPos, 30, 24);
+                Rectangle musicStyleRightRect = Rectangle(musicStyleTextX + MeasureTextEx(app.fontFamily[2], musicStyleStr.toStringz(), 24, 1).x + 5, yPos, 30, 24);
+                if (CheckCollisionPointRec(mousePos, musicStyleLeftRect) || CheckCollisionPointRec(mousePos, musicStyleRightRect)) {
+                    currentOptions.musicStyle = (currentOptions.musicStyle == 1) ? 2 : 1;
                     applyGameplaySettings();
                     if (audioManager !is null) audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX);
                 }
-                if (CheckCollisionPointRec(mousePos, musicStyleRightArrowRect)) {
-                    currentOptions.musicStyle = (currentOptions.musicStyle == 1) ? 2 : 1; // Toggle between 1 (Original) and 2 (Arranged)
-                    applyGameplaySettings();
-                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX);
-                }
-
-                // Define the clickable rectangle for the mute toggle using the corrected Y position
-                // Note: optionsContentX + optionsContentWidth / 2 should be equivalent to interactableXPos used in draw
-                Rectangle actualMuteToggleRect = Rectangle(optionsContentX + optionsContentWidth / 2, yPosForMuteClickCheck, 100, 24);
-                
-                if (CheckCollisionPointRec(mousePos, actualMuteToggleRect)) {
+                yPos += 40;
+                // Option 4: Mute All
+                Rectangle muteRect = Rectangle(optionsContentX + optionsContentWidth / 2, yPos, 100, 24);
+                if (CheckCollisionPointRec(mousePos, muteRect)) {
                     currentOptions.mute = !currentOptions.mute;
-                    applyAudioSettings(); // Apply immediately
-                    if (audioManager !is null) {
-                        audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX); 
-                    }
+                    applyAudioSettings();
+                    if (audioManager !is null) audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX);
                 }
                 break;
             case "Gameplay":
@@ -621,6 +614,12 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
                 // The randomBackdropsToggleRect is defined in drawCurrentCategoryOptionsLayout. Its yPos is initialYPos + 40.
                 if (CheckCollisionPointRec(mousePos, randomBackdropsToggleRect)) {
                     currentOptions.randomBackdrops = !currentOptions.randomBackdrops;
+                    // Immediately update the backdrop manager with the new setting
+                    import game.backdrop_manager;
+                    auto backdropManager = BackdropManager.getInstance();
+                    if (backdropManager !is null) {
+                        backdropManager.refreshRandomBackdropsSetting();
+                    }
                     if (audioManager !is null) audioManager.playSound("resources/audio/sfx/select.ogg", AudioType.SFX);
                 }
 
@@ -788,91 +787,72 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
                     DrawRectangleRec(Rectangle(labelXPos - 10, yPos - 5, width - 60, 34), Color(135, 206, 235, 100)); // Sky blue highlight
                 }
                 DrawTextEx(app.fontFamily[1], "Master Volume:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
-                
-                // Master volume slider
                 masterVolumeSliderRect = Rectangle(interactableXPos, yPos, sliderWidth, sliderHeight);
-                DrawRectangleRec(masterVolumeSliderRect, Color(60, 60, 60, 255)); // Slider background
-                DrawRectangleLinesEx(masterVolumeSliderRect, 1, Colors.GRAY); // Slider border
-                
-                // Draw filled portion of the slider
+                DrawRectangleRec(masterVolumeSliderRect, Color(60, 60, 60, 255));
+                DrawRectangleLinesEx(masterVolumeSliderRect, 1, Colors.GRAY);
                 float masterFillWidth = (currentOptions.masterVolume / 100.0f) * sliderWidth;
                 DrawRectangleRec(Rectangle(interactableXPos, yPos, masterFillWidth, sliderHeight), Color(0, 120, 200, 255));
-                
-                // Draw slider handle
                 float masterHandleX = interactableXPos + masterFillWidth - 5;
                 DrawRectangleRec(Rectangle(masterHandleX, yPos - 5, 10, sliderHeight + 10), Colors.WHITE);
-                
-                // Display current value
                 DrawTextEx(app.fontFamily[2], currentOptions.masterVolume.to!string.toStringz(), Vector2(valueXPos, yPos + 2), 24, 1, Colors.YELLOW);
-                
-                // Add key hint (1)
                 DrawTextEx(app.fontFamily[2], "[1]".toStringz(), Vector2(labelXPos - 30, yPos + 2), 18, 1, Colors.DARKGRAY);
                 yPos += 40;
 
                 // Option 1: Music Volume
                 if (keyboardNavigationEnabled && selectedOptionIndex == 1) {
-                    DrawRectangleRec(Rectangle(labelXPos - 10, yPos - 5, width - 60, 34), Color(135, 206, 235, 100)); // Sky blue highlight
+                    DrawRectangleRec(Rectangle(labelXPos - 10, yPos - 5, width - 60, 34), Color(135, 206, 235, 100));
                 }
                 DrawTextEx(app.fontFamily[1], "Music Volume:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
-                
-                // Music volume slider
                 musicVolumeSliderRect = Rectangle(interactableXPos, yPos, sliderWidth, sliderHeight);
-                DrawRectangleRec(musicVolumeSliderRect, Color(60, 60, 60, 255)); // Slider background
-                DrawRectangleLinesEx(musicVolumeSliderRect, 1, Colors.GRAY); // Slider border
-                
-                // Draw filled portion of the slider
+                DrawRectangleRec(musicVolumeSliderRect, Color(60, 60, 60, 255));
+                DrawRectangleLinesEx(musicVolumeSliderRect, 1, Colors.GRAY);
                 float musicFillWidth = (currentOptions.musicVolume / 100.0f) * sliderWidth;
                 DrawRectangleRec(Rectangle(interactableXPos, yPos, musicFillWidth, sliderHeight), Color(0, 120, 200, 255));
-                
-                // Draw slider handle
                 float musicHandleX = interactableXPos + musicFillWidth - 5;
                 DrawRectangleRec(Rectangle(musicHandleX, yPos - 5, 10, sliderHeight + 10), Colors.WHITE);
-                
-                // Display current value
                 DrawTextEx(app.fontFamily[2], currentOptions.musicVolume.to!string.toStringz(), Vector2(valueXPos, yPos + 2), 24, 1, Colors.YELLOW);
-                
-                // Add key hint (2)
                 DrawTextEx(app.fontFamily[2], "[2]".toStringz(), Vector2(labelXPos - 30, yPos + 2), 18, 1, Colors.DARKGRAY);
                 yPos += 40;
 
                 // Option 2: SFX Volume
                 if (keyboardNavigationEnabled && selectedOptionIndex == 2) {
-                    DrawRectangleRec(Rectangle(labelXPos - 10, yPos - 5, width - 60, 34), Color(135, 206, 235, 100)); // Sky blue highlight
+                    DrawRectangleRec(Rectangle(labelXPos - 10, yPos - 5, width - 60, 34), Color(135, 206, 235, 100));
                 }
                 DrawTextEx(app.fontFamily[1], "SFX Volume:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
-                
-                // SFX volume slider
                 sfxVolumeSliderRect = Rectangle(interactableXPos, yPos, sliderWidth, sliderHeight);
-                DrawRectangleRec(sfxVolumeSliderRect, Color(60, 60, 60, 255)); // Slider background
-                DrawRectangleLinesEx(sfxVolumeSliderRect, 1, Colors.GRAY); // Slider border
-                
-                // Draw filled portion of the slider
+                DrawRectangleRec(sfxVolumeSliderRect, Color(60, 60, 60, 255));
+                DrawRectangleLinesEx(sfxVolumeSliderRect, 1, Colors.GRAY);
                 float sfxFillWidth = (currentOptions.sfxVolume / 100.0f) * sliderWidth;
                 DrawRectangleRec(Rectangle(interactableXPos, yPos, sfxFillWidth, sliderHeight), Color(0, 120, 200, 255));
-                
-                // Draw slider handle
                 float sfxHandleX = interactableXPos + sfxFillWidth - 5;
                 DrawRectangleRec(Rectangle(sfxHandleX, yPos - 5, 10, sliderHeight + 10), Colors.WHITE);
-                
-                // Display current value
                 DrawTextEx(app.fontFamily[2], currentOptions.sfxVolume.to!string.toStringz(), Vector2(valueXPos, yPos + 2), 24, 1, Colors.YELLOW);
-                
-                // Add key hint (3)
                 DrawTextEx(app.fontFamily[2], "[3]".toStringz(), Vector2(labelXPos - 30, yPos + 2), 18, 1, Colors.DARKGRAY);
                 yPos += 40;
-                
-                // Skip the keyboard control hints to save space
-                yPos += 20;
 
-                // Skip music style option since it's redundant with Gameplay - remove these lines
-                // Leave space for future audio options
-
-                // Option 3: Mute All
+                // Option 3: Music Style
                 if (keyboardNavigationEnabled && selectedOptionIndex == 3) {
-                    DrawRectangleRec(Rectangle(labelXPos - 10, yPos - 5, width - 60, 34), Color(135, 206, 235, 100)); // Sky blue highlight
+                    DrawRectangleRec(Rectangle(labelXPos - 10, yPos - 5, width - 60, 34), Color(135, 206, 235, 100));
+                }
+                DrawTextEx(app.fontFamily[1], "Music Style:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
+                string musicStyleStr = (currentOptions.musicStyle == 1) ? "Original" : "Arranged";
+                if (currentOptions.musicStyle != 1 && currentOptions.musicStyle != 2) currentOptions.musicStyle = 2; // Default to Arranged if invalid
+                float musicStyleTextX = interactableXPos - (MeasureTextEx(app.fontFamily[2], musicStyleStr.toStringz(), 24, 1).x / 2);
+                musicStyleLeftArrowRect = Rectangle(musicStyleTextX - arrowButtonWidth - arrowSpacing, yPos, arrowButtonWidth, arrowButtonHeight);
+                musicStyleRightArrowRect = Rectangle(musicStyleTextX + MeasureTextEx(app.fontFamily[2], musicStyleStr.toStringz(), 24, 1).x + arrowSpacing, yPos, arrowButtonWidth, arrowButtonHeight);
+                DrawRectangleRec(musicStyleLeftArrowRect, Colors.DARKGRAY);
+                DrawTextEx(app.fontFamily[2], "<".toStringz(), Vector2(musicStyleLeftArrowRect.x + 10, musicStyleLeftArrowRect.y + 2), 24, 1, Colors.WHITE);
+                DrawTextEx(app.fontFamily[2], musicStyleStr.toStringz(), Vector2(musicStyleTextX, yPos + 2), 24, 1, Colors.YELLOW);
+                DrawRectangleRec(musicStyleRightArrowRect, Colors.DARKGRAY);
+                DrawTextEx(app.fontFamily[2], ">".toStringz(), Vector2(musicStyleRightArrowRect.x + 10, musicStyleRightArrowRect.y + 2), 24, 1, Colors.WHITE);
+                yPos += 40;
+
+                // Option 4: Mute All
+                if (keyboardNavigationEnabled && selectedOptionIndex == 4) {
+                    DrawRectangleRec(Rectangle(labelXPos - 10, yPos - 5, width - 60, 34), Color(135, 206, 235, 100));
                 }
                 DrawTextEx(app.fontFamily[1], "Mute All:".toStringz(), Vector2(labelXPos, yPos + 2), 24, 1, Colors.RAYWHITE);
-                muteToggleRect = Rectangle(interactableXPos, yPos, 100, 24); // Assign to class member
+                muteToggleRect = Rectangle(interactableXPos, yPos, 100, 24);
                 DrawRectangleRec(muteToggleRect, currentOptions.mute ? Colors.LIME : Colors.MAROON);
                 DrawTextEx(app.fontFamily[2], (currentOptions.mute ? "ON" : "OFF").toStringz(), Vector2(interactableXPos + 35, yPos + 2), 20, 1, Colors.BLACK);
                 break;
@@ -1022,7 +1002,7 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
             currentOptions.sfxVolume = 75;
             currentOptions.mute = false;
             currentOptions.autoSave = true;
-            currentOptions.randomBackdrops = true;
+            currentOptions.randomBackdrops = false; // Changed to false so it starts with backdrop00
             currentOptions.gemStyle = 1; // Classic
             currentOptions.systemMode = 1; // Original
             currentOptions.musicStyle = 2; // Default music style to Arranged
@@ -1362,6 +1342,12 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
                         break;
                     case 1: // Random Backdrops toggle
                         currentOptions.randomBackdrops = !currentOptions.randomBackdrops;
+                        // Immediately update the backdrop manager with the new setting
+                        import game.backdrop_manager;
+                        auto backdropManager = BackdropManager.getInstance();
+                        if (backdropManager !is null) {
+                            backdropManager.refreshRandomBackdropsSetting();
+                        }
                         break;
                     case 2: // Gem Style (cycle)
                         currentOptions.gemStyle = (currentOptions.gemStyle % 3) + 1; // 1, 2, 3, then back to 1
