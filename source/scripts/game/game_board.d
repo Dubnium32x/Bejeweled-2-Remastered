@@ -91,7 +91,7 @@ class GameBoard {
         GemType swapGem1OriginalType = GemType.NONE;
         GemType swapGem2OriginalType = GemType.NONE;
         
-        // Textures
+        // Textures0
         Texture2D puzzleFrameTexture;
         Texture2D[7] gemTextures; // One for each gem type (gem0.png - gem6.png)
         Texture2D[7] gemAlphaTextures; // Alpha masks for gems (gem0_.png - gem6_.png)
