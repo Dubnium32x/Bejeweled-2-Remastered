@@ -3288,10 +3288,6 @@ class TitleScreen : IScreen {
             DrawRectangle(0, 0, VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT, Fade(Colors.BLACK, screenFadeAlpha));
         }
 
-        // DEBUG: Draw current state
-        string stateText = "State: " ~ to!string(state);
-        DrawTextEx(app.fontFamily[4], stateText.toStringz(), Vector2(10, VIRTUAL_SCREEN_HEIGHT - 30), 20, 1.0f, Colors.WHITE);
-
         // Draw keyboard navigation hints
         if (state == TitleState.MAINMENU || state == TitleState.GAMEMENU) {
             string hintText = "";
@@ -3302,10 +3298,10 @@ class TitleScreen : IScreen {
             }
             
             float hintFontSize = 16.0f;
-            Vector2 hintTextSize = MeasureTextEx(app.fontFamily[4], hintText.toStringz(), hintFontSize, 1.0f);
+            Vector2 hintTextSize = MeasureTextEx(app.fontFamily[2], hintText.toStringz(), hintFontSize, 1.0f);
             float hintX = VIRTUAL_SCREEN_WIDTH - hintTextSize.x - 10; // Right edge
             float hintY = VIRTUAL_SCREEN_HEIGHT - hintTextSize.y - 10; // Bottom edge
-            DrawTextEx(app.fontFamily[4], hintText.toStringz(), Vector2(hintX, hintY), hintFontSize, 1.0f, Colors.LIGHTGRAY);
+            DrawTextEx(app.fontFamily[2], hintText.toStringz(), Vector2(hintX, hintY), hintFontSize, 1.0f, Colors.LIGHTGRAY);
         }
 
         // Draw Copyright Text in LOGO state

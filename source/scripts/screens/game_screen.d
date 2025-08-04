@@ -194,7 +194,12 @@ class GameScreen : IScreen {
     
     // Game board
     private GameBoard gameBoard;
-    
+
+    private Sound goSound;
+
+    // Track previous state of showGoText to detect animation start
+    private bool prevShowGoText = false;
+
     // Static singleton access
     static GameScreen getInstance() {
         if (_instance is null) {
@@ -230,6 +235,10 @@ class GameScreen : IScreen {
         gameBoard = GameBoard.getInstance();
         gameBoard.initialize();
         gameBoard.generatePlayableBoard(); // Generate board with no initial matches but valid moves
+
+        // Load the 'GO!' voice line
+        goSound = LoadSound("resources/audio/vox/go.ogg");
+        writeln("GameScreen: Loaded 'GO!' voice line");
         
         isInitialized = true;
         writeln("GameScreen initialized");
@@ -262,6 +271,14 @@ class GameScreen : IScreen {
         if (IsKeyPressed(KeyboardKey.KEY_P) && backdropManager !is null) {
             backdropManager.previousBackdrop();
         }
+
+        // Play the 'GO!' voice line when the GO! animation starts
+        bool currentShowGoText = gameBoard.isShowingGoText();
+        if (currentShowGoText && !prevShowGoText) {
+            PlaySound(goSound);
+            writeln("GameScreen: Playing 'GO!' voice line");
+        }
+        prevShowGoText = currentShowGoText;
     }
     
     void draw() {
@@ -280,9 +297,6 @@ class GameScreen : IScreen {
             gameBoard.draw();
         }
         
-        // Draw game UI over the backdrop
-        DrawTextEx(fontFamily[0], "GAME SCREEN".toStringz(), 
-                  Vector2(VIRTUAL_SCREEN_WIDTH / 2 - 120, 100), 32, 1, Colors.WHITE);
         
         // Show which mode was selected
         import data;
@@ -295,14 +309,6 @@ class GameScreen : IScreen {
             case 3: modeText = "PUZZLE MODE"; break;
             default: modeText = "UNKNOWN MODE"; break;
         }
-        
-        DrawTextEx(fontFamily[1], modeText.toStringz(),
-                  Vector2(VIRTUAL_SCREEN_WIDTH / 2 - MeasureTextEx(fontFamily[1], modeText.toStringz(), 28, 1).x / 2, 200), 
-                  28, 1, Colors.YELLOW);
-        
-        // Instructions
-        DrawTextEx(fontFamily[2], "Click gems to select them!".toStringz(),
-                  Vector2(VIRTUAL_SCREEN_WIDTH / 2 - 200, 300), 20, 1, Colors.LIGHTGRAY);
         
         // Display score and level information
         if (gameBoard !is null) {
@@ -331,20 +337,7 @@ class GameScreen : IScreen {
             DrawTextEx(fontFamily[2], progressText.toStringz(),
                       Vector2(55, 245), 16, 1, Colors.WHITE);
         }
-        
-        // Show current backdrop info
-        if (backdropManager !is null) {
-            string backdropInfo = "Backdrop: " ~ backdropManager.getCurrentBackdropName() ~ 
-                                  " (" ~ (backdropManager.getCurrentBackdropIndex() + 1).to!string ~ 
-                                  "/" ~ backdropManager.getBackdropCount().to!string ~ ")";
-            DrawTextEx(fontFamily[2], backdropInfo.toStringz(),
-                      Vector2(VIRTUAL_SCREEN_WIDTH / 2 - MeasureTextEx(fontFamily[2], backdropInfo.toStringz(), 18, 1).x / 2, 500), 
-                      18, 1, Colors.LIME);
-        }
-        
-        // Show wormhole transition working message
-        DrawTextEx(fontFamily[2], "Wormhole transition system is working!".toStringz(),
-                  Vector2(VIRTUAL_SCREEN_WIDTH / 2 - 200, 550), 18, 1, Colors.LIME);
+
     }
     
     void unload() {
@@ -356,6 +349,11 @@ class GameScreen : IScreen {
         }
         isInitialized = false;
         fontsFiltered = false;
+
+        // Unload the 'GO!' voice line
+        UnloadSound(goSound);
+        writeln("GameScreen: Unloaded 'GO!' voice line");
+
         writeln("GameScreen unloaded");
     }
 }

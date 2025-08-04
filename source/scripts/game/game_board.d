@@ -97,6 +97,10 @@ class GameBoard {
         Texture2D[7] gemAlphaTextures; // Alpha masks for gems (gem0_.png - gem6_.png)
         Texture2D sparkTexture; // Spark effect texture (Spark2.png with alpha)
         
+        // Sprite font system for Bejeweled font
+        Texture2D[38] bejeweledFontTextures; // Individual character textures (0.png - 37.png)
+        bool bejeweledFontLoaded = false;
+        
         // Animation constants
         static const int GEM_ANIMATION_FRAMES = 20;
         static const float GEM_FRAME_RATE = 0.025f; // 40 FPS (faster spinning)
@@ -155,6 +159,16 @@ class GameBoard {
         float gemDropAnimationDuration = 1.5f; // How long gem drops take
         float[BOARD_SIZE][BOARD_SIZE] gemDropDelays; // Staggered drop timing
         bool hasPlayedGoAnnouncement = false; // Track if "GO!" has been announced
+        
+        // "GO!" text display animation
+        bool showGoText = false; // Whether to show the "GO!" text
+
+        /// Public getter for showGoText (for use by GameScreen)
+        public bool isShowingGoText() const {
+            return showGoText;
+        }
+        float goTextTimer = 0.0f; // Timer for "GO!" text animation
+        float goTextDuration = 3.5f; // How long "GO!" text stays on screen (increased for longer fadeout)
         
         // Mouse swipe detection
         bool isMouseDown = false;
@@ -236,6 +250,15 @@ class GameBoard {
         // Start entrance animation
         isPlayingEntranceAnimation = true;
         entranceAnimationTimer = 0.0f;
+        
+        // Reset gem drop animation state
+        isPlayingGemDropAnimation = false;
+        gemDropAnimationTimer = 0.0f;
+        hasPlayedGoAnnouncement = false;
+        
+        // Reset "GO!" text state
+        showGoText = false;
+        goTextTimer = 0.0f;
         
         // Initialize empty board but don't fill with gems yet
         clearBoard();
@@ -324,6 +347,9 @@ class GameBoard {
         
         // Load cascade counter font
         cascadeFont = LoadFont("resources/font/contb.ttf");
+        
+        // Load Bejeweled sprite font (individual character images)
+        loadBejeweledFont();
     }
 
     /**
@@ -933,6 +959,19 @@ class GameBoard {
         // Update gem drop animations
         updateGemDropAnimations(deltaTime);
         
+        // Always update "GO!" text animation even if gameplay has started
+        // This ensures the full animation completes
+        if (showGoText) {
+            goTextTimer += deltaTime;
+            
+            // Hide text after duration
+            if (goTextTimer >= goTextDuration) {
+                showGoText = false;
+                goTextTimer = 0.0f;
+                writeln("GO! animation completed in main update, hiding text");
+            }
+        }
+        
         // Only process normal game logic if entrance animations are complete
         if (!isPlayingEntranceAnimation && !isPlayingGemDropAnimation) {
             // Handle input (only if not processing matches or animating)
@@ -1035,6 +1074,11 @@ class GameBoard {
         // Draw cascade counter
         if (showCascadeCounter && displayCascadeMultiplier > 1) {
             drawCascadeCounter();
+        }
+        
+        // Draw "GO!" text if showing
+        if (showGoText) {
+            drawGoText();
         }
         
         // Restore matrix if screen shake was applied
@@ -1224,6 +1268,120 @@ class GameBoard {
         DrawTextEx(cascadeFont, cascadeText.toStringz, Vector2(counterX + 1, counterY + 1), fontSize, 0, glowColor);
         DrawTextEx(cascadeFont, multiplierText.toStringz, Vector2(counterX + 19, counterY + 39), multiplierSize, 0, glowColor);
         DrawTextEx(cascadeFont, multiplierText.toStringz, Vector2(counterX + 21, counterY + 41), multiplierSize, 0, glowColor);
+    }
+
+    /**
+     * Draw the "GO!" text announcement with authentic Bejeweled animation
+     */
+    private void drawGoText() {
+        import app : VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT;
+        import raylib : rlPushMatrix, rlPopMatrix, rlTranslatef, rlScalef;
+        import std.math : sin, PI;
+        
+        // Only print debug every 0.5 seconds to reduce spam
+        if (cast(int)(goTextTimer * 10) % 5 == 0) {
+            writeln("drawGoText: Timer=", goTextTimer, ", showGoText=", showGoText);
+        }
+        
+        // Center the text on screen
+        string goText = "GO!";
+        float baseScale = 1.2f; // Base scale for the text
+        
+        // Position it higher as requested, near the top of the board
+        float centerX = VIRTUAL_SCREEN_WIDTH * 0.5f;
+        float centerY = VIRTUAL_SCREEN_HEIGHT * 0.35f; // Raised from 0.4f to be higher
+        
+        // Animation timing (total duration = 3.5 seconds)
+        float inflateTime = 0.3f;    // Time to inflate from flat to full
+        float pulsateTime = 2.0f;    // Time to pulsate after inflating (slower pulsation)
+        float fadeTime = 1.2f;       // Time to fade out at the end (longer fade)
+        
+        // Calculate animation state based on timer
+        float overallScale = 1.0f;
+        float scaleY = 0.0f;
+        float alpha = 0.0f;
+        
+        if (goTextTimer <= inflateTime) {
+            // 1. Inflate animation
+            float t = goTextTimer / inflateTime;
+            t = t * t * (3.0f - 2.0f * t); // Smooth step for easing
+            
+            overallScale = 1.25f + t * 0.25f; // Scale from 125% to 150%
+            scaleY = t;                       // Y-scale from 0% to 100% (un-flatten)
+            alpha = t;                        // Fade in from 0% to 100%
+        } else if (goTextTimer <= inflateTime + pulsateTime) {
+            // 2. Pulsating animation
+            float t = (goTextTimer - inflateTime) / pulsateTime;
+            
+            // Pulsate scale between 1.5 and 1.65 using a sine wave (slower pulsation)
+            float pulse = sin(t * PI * 2.5f); // Reduced from 4.0 for slower pulsation
+            overallScale = 1.5f + pulse * 0.15f; // Base 150% scale, pulsates by +/- 15%
+            
+            scaleY = 1.0f; // Fully un-flattened
+            alpha = 1.0f;  // Fully visible
+        } else if (goTextTimer <= inflateTime + pulsateTime + fadeTime) {
+            // 3. Fade out animation
+            float t = (goTextTimer - inflateTime - pulsateTime) / fadeTime;
+            t = t * t; // Ease-in for fade out
+            
+            overallScale = 1.65f - t * 1.3f; // Scale down from 165% to 35% (more shrinking)
+            scaleY = 1.0f - (t * 0.3f);     // Slight flattening during fade (70% of original height)
+            alpha = 1.0f - t;               // Fade out from 100% to 0%
+        } else {
+            // Animation finished
+            alpha = 0.0f;
+            // Don't set showGoText = false here - let the update function handle that
+            // This avoids race conditions with the timer update
+        }
+        
+        // Skip drawing if completely transparent
+        if (alpha <= 0.0f) {
+            // Make sure we signal that animation is complete
+            if (goTextTimer >= goTextDuration) {
+                showGoText = false;
+            }
+            return;
+        }
+        
+        // Calculate text dimensions for centering
+        float finalScale = baseScale * overallScale;
+        float textWidth = measureBejeweledText(goText, finalScale);
+        float estimatedTextHeight = 64.0f * finalScale; // Estimate text height based on font image size
+        
+        // Position for bottom-anchored scaling to make it pop from the bottom
+        float textBottomY = centerY + (estimatedTextHeight * 0.5f);
+        
+        // Apply transformations for scaling and positioning
+        rlPushMatrix();
+        
+        // Translate to the bottom-center of the text area for scaling effect
+        rlTranslatef(centerX, textBottomY, 0.0f);
+        
+        // Apply Y scaling for the flatten/inflate effect
+        rlScalef(1.0f, scaleY, 1.0f);
+        
+        // Translate back to position the text correctly after scaling
+        rlTranslatef(-textWidth * 0.5f, -estimatedTextHeight, 0.0f);
+        
+        // Set colors with calculated alpha for fading
+        Color textColor = Color(255, 255, 0, cast(ubyte)(255 * alpha)); // Bright yellow
+        Color glowColor = Color(255, 200, 0, cast(ubyte)(128 * alpha)); // Orange glow
+        
+        // Draw glow effect (offset copies for a softer look)
+        for (int ox = -2; ox <= 2; ox++) {
+            for (int oy = -2; oy <= 2; oy++) {
+                if (ox != 0 || oy != 0) {
+                    Vector2 glowPos = Vector2(ox, oy);
+                    drawBejeweledText(goText, glowPos, finalScale, glowColor);
+                }
+            }
+        }
+        
+        // Draw main text on top of the glow
+        Vector2 textPos = Vector2(0, 0);
+        drawBejeweledText(goText, textPos, finalScale, textColor);
+        
+        rlPopMatrix();
     }
 
     /**
@@ -2473,6 +2631,26 @@ class GameBoard {
         
         gemDropAnimationTimer += deltaTime;
         
+        // Debug output for animation state
+        if (gemDropAnimationTimer % 0.5f < 0.01f) {  // Print every ~0.5 seconds
+            writeln("GemDrop: timer=", gemDropAnimationTimer, ", showGoText=", showGoText, 
+                    ", goTextTimer=", goTextTimer, ", hasPlayed=", hasPlayedGoAnnouncement);
+        }
+        
+        // Update "GO!" text animation even if gem drop animation is complete
+        // This ensures the animation completes even after gameplay starts
+        if (showGoText) {
+            goTextTimer += deltaTime;
+            writeln("GO! timer updated: ", goTextTimer);
+            
+            // Hide text after duration
+            if (goTextTimer >= goTextDuration) {
+                showGoText = false;
+                goTextTimer = 0.0f;
+                writeln("GO! animation completed, hiding text");
+            }
+        }
+        
         // Check if all gems have finished falling using existing falling system
         bool allGemsFallingComplete = !isAnyGemFalling();
         
@@ -2483,7 +2661,10 @@ class GameBoard {
             if (audioManager) {
                 audioManager.playSound("go_announcement", AudioType.VOX); // Use VOX for announcements
             }
-            writeln("GameBoard: Playing GO! announcement");
+            // Start "GO!" text animation
+            showGoText = true;
+            goTextTimer = 0.0f;
+            writeln("GameBoard: Playing GO! announcement and showing text NOW!");
         }
         
         // Animation complete when all gems have stopped falling
@@ -2644,5 +2825,123 @@ class GameBoard {
             }
         }
         writeln("GameBoard: All gems snapped to exact grid positions");
+    }
+    
+    /**
+     * Load Bejeweled sprite font (individual character PNG files)
+     */
+    private void loadBejeweledFont() {
+        import std.conv : to;
+        
+        int loadedCount = 0;
+        for (int i = 0; i < 38; i++) {
+            string filename = "resources/font/bejeweledFont/" ~ to!string(i) ~ ".png";
+            bejeweledFontTextures[i] = memoryManager.loadTexture(filename);
+            
+            if (bejeweledFontTextures[i].id > 0) {
+                loadedCount++;
+            } else {
+                writefln("WARNING: Failed to load Bejeweled font character: %s", filename);
+            }
+        }
+        
+        bejeweledFontLoaded = (loadedCount > 0);
+        writefln("GameBoard: Loaded %d/%d Bejeweled font characters", loadedCount, 38);
+    }
+    
+    /**
+     * Draw text using the Bejeweled sprite font
+     * Character mapping based on typical sprite font layouts:
+     * 0-9: numbers, 10-35: A-Z, 36-37: special characters
+     */
+    void drawBejeweledText(string text, Vector2 position, float scale = 1.0f, Color tint = Colors.WHITE) {
+        if (!bejeweledFontLoaded || text.length == 0) return;
+        
+        float currentX = position.x;
+        float spacing = 2.0f * scale; // Space between characters
+        
+        foreach (char c; text) {
+            int charIndex = getBejeweledCharIndex(c);
+            
+            if (charIndex >= 0 && charIndex < 38 && bejeweledFontTextures[charIndex].id > 0) {
+                Texture2D charTexture = bejeweledFontTextures[charIndex];
+                
+                // Draw the character with scaling
+                Rectangle sourceRect = Rectangle(0, 0, charTexture.width, charTexture.height);
+                Rectangle destRect = Rectangle(
+                    currentX,
+                    position.y,
+                    charTexture.width * scale,
+                    charTexture.height * scale
+                );
+                
+                DrawTexturePro(charTexture, sourceRect, destRect, Vector2(0, 0), 0.0f, tint);
+                
+                // Move to next character position
+                currentX += (charTexture.width * scale) + spacing;
+            } else {
+                // Unknown character, skip with small space
+                currentX += 10.0f * scale;
+            }
+        }
+    }
+    
+    /**
+     * Get the character index for the Bejeweled font
+     * Maps characters to texture indices (0.png - 37.png)
+     */
+    private int getBejeweledCharIndex(char c) {
+        // Letters A-Z map to indices 0-25
+        if (c >= 'A' && c <= 'Z') {
+            return c - 'A';
+        }
+        
+        // Lowercase letters also map to A-Z (indices 0-25)
+        if (c >= 'a' && c <= 'z') {
+            return c - 'a';
+        }
+        
+        // Numbers 0-9 map to indices 26-35
+        if (c >= '0' && c <= '9') {
+            return (c - '0') + 26;
+        }
+        
+        // Special characters based on your sequence: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'!"
+        switch (c) {
+            case ' ': return -1; // Space - don't draw anything, just advance
+            case '\'': return 36; // Apostrophe
+            case '!': return 37; // Exclamation mark
+            default: return -1; // Unknown character
+        }
+    }
+    
+    /**
+     * Calculate the width of text when drawn with the Bejeweled font
+     */
+    float measureBejeweledText(string text, float scale = 1.0f) {
+        if (!bejeweledFontLoaded || text.length == 0) return 0.0f;
+        
+        float totalWidth = 0.0f;
+        float spacing = 2.0f * scale;
+        
+        foreach (char c; text) {
+            int charIndex = getBejeweledCharIndex(c);
+            
+            if (charIndex >= 0 && charIndex < 38 && bejeweledFontTextures[charIndex].id > 0) {
+                Texture2D charTexture = bejeweledFontTextures[charIndex];
+                totalWidth += (charTexture.width * scale) + spacing;
+            } else if (c == ' ') {
+                totalWidth += 10.0f * scale; // Space width
+            } else {
+                totalWidth += 10.0f * scale; // Unknown character width
+            }
+        }
+        
+        // Remove the last spacing
+        if (totalWidth > 0) {
+            totalWidth -= spacing;
+        }
+        
+        return totalWidth;
     }
 }
