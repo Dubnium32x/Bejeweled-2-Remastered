@@ -143,6 +143,19 @@ class GameBoard {
         bool isProcessingMatches = false; // Prevent input during match processing
         bool isPlayingClearingAnimation = false; // Track if we're playing clearing animations
         
+        // Board entrance animation
+        bool isPlayingEntranceAnimation = false; // Board sliding in from right
+        float entranceAnimationTimer = 0.0f; // Timer for entrance animation
+        float entranceAnimationDuration = 0.6f; // Reduced from 1.2f - twice as fast
+        Vector2 finalBoardPosition = Vector2(0, 0); // Final position for board
+        
+        // Gem drop animation (after board entrance)
+        bool isPlayingGemDropAnimation = false; // Gems falling from top
+        float gemDropAnimationTimer = 0.0f; // Timer for gem drop
+        float gemDropAnimationDuration = 1.5f; // How long gem drops take
+        float[BOARD_SIZE][BOARD_SIZE] gemDropDelays; // Staggered drop timing
+        bool hasPlayedGoAnnouncement = false; // Track if "GO!" has been announced
+        
         // Mouse swipe detection
         bool isMouseDown = false;
         Vector2 mouseDownPos = Vector2(0, 0);
@@ -211,14 +224,33 @@ class GameBoard {
         // Adjusted padding to align with actual frame tile positions
         float framePaddingX = 43.0f; // Horizontal padding - moved right from 39.0
         float framePaddingY = 30.0f; // Vertical padding - moved up from 45.0
-        boardPosition.x = frameX + framePaddingX;
-        boardPosition.y = frameY + framePaddingY;
         
-        // Initialize empty board
+        // Store final position and start entrance animation
+        finalBoardPosition.x = frameX + framePaddingX;
+        finalBoardPosition.y = frameY + framePaddingY;
+        
+        // Start board off-screen to the right for entrance animation
+        boardPosition.x = VIRTUAL_SCREEN_WIDTH + frameWidth; // Start completely off-screen
+        boardPosition.y = finalBoardPosition.y; // Same Y position
+        
+        // Start entrance animation
+        isPlayingEntranceAnimation = true;
+        entranceAnimationTimer = 0.0f;
+        
+        // Initialize empty board but don't fill with gems yet
         clearBoard();
         
+        // Setup gem drop delays for staggered animation
+        import std.random : uniform;
+        for (int row = 0; row < BOARD_SIZE; row++) {
+            for (int col = 0; col < BOARD_SIZE; col++) {
+                // Stagger drops by column and add some randomness
+                gemDropDelays[row][col] = col * 0.1f + uniform(0.0f, 0.05f);
+            }
+        }
+        
         initialized = true;
-        writeln("GameBoard initialized at position: (", boardPosition.x, ", ", boardPosition.y, ")");
+        writeln("GameBoard entrance animation started. Final position: (", finalBoardPosition.x, ", ", finalBoardPosition.y, ")");
     }
 
     /**
@@ -895,22 +927,31 @@ class GameBoard {
             }
         }
         
-        // Handle input (only if not processing matches or animating)
-        handleInput();
+        // Update entrance animations first (highest priority)
+        updateEntranceAnimations(deltaTime);
         
-        // Update swap animations
-        updateSwapAnimations(deltaTime);
+        // Update gem drop animations
+        updateGemDropAnimations(deltaTime);
         
-        // Update clearing animations
-        updateClearingAnimations(deltaTime);
+        // Only process normal game logic if entrance animations are complete
+        if (!isPlayingEntranceAnimation && !isPlayingGemDropAnimation) {
+            // Handle input (only if not processing matches or animating)
+            handleInput();
+            
+            // Update swap animations
+            updateSwapAnimations(deltaTime);
+            
+            // Update clearing animations
+            updateClearingAnimations(deltaTime);
+            
+            // Update cascade effects
+            updateCascadeEffects(deltaTime);
+        }
         
-        // Update falling animations
+        // Always update falling animations (needed for gem drop animation)
         updateFallingAnimations(deltaTime);
         
-        // Update cascade effects
-        updateCascadeEffects(deltaTime);
-        
-        // Update gem animations - 20-frame animation system
+        // Always update gem frame animations regardless of game state
         for (int row = 0; row < BOARD_SIZE; row++) {
             for (int col = 0; col < BOARD_SIZE; col++) {
                 if (board[row][col].type != GemType.NONE) {
@@ -964,12 +1005,11 @@ class GameBoard {
         
         // Draw puzzle frame background with proper alpha blending
         if (puzzleFrameTexture.id > 0) {
-            // Position the puzzle frame
-            import app : VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT;
-            float frameWidth = 750.0f;
-            float frameHeight = 762.0f;
-            float frameX = VIRTUAL_SCREEN_WIDTH * 0.6f - frameWidth / 2;
-            float frameY = VIRTUAL_SCREEN_HEIGHT / 2 - frameHeight / 2;
+            // Calculate frame position based on current board position (for entrance animation)
+            float framePaddingX = 43.0f;
+            float framePaddingY = 30.0f;
+            float frameX = boardPosition.x - framePaddingX;
+            float frameY = boardPosition.y - framePaddingY;
             
             // Draw with alpha blending enabled to show background through transparent areas
             DrawTexture(puzzleFrameTexture, cast(int)frameX, cast(int)frameY, Colors.WHITE);
@@ -2385,6 +2425,146 @@ class GameBoard {
             writeln("GameBoard: Clearing animation complete, starting falling animation");
             writefln("GameBoard: Before falling - isProcessingMatches=%s", isProcessingMatches);
             startFallingAnimation();
+        }
+    }
+
+    /**
+     * Update board entrance animation
+     */
+    private void updateEntranceAnimations(float deltaTime) {
+        if (!isPlayingEntranceAnimation) return;
+        
+        entranceAnimationTimer += deltaTime;
+        float progress = entranceAnimationTimer / entranceAnimationDuration;
+        
+        if (progress >= 1.0f) {
+            // Animation complete
+            progress = 1.0f;
+            isPlayingEntranceAnimation = false;
+            
+            // Start gem drop animation using the existing falling system
+            isPlayingGemDropAnimation = true;
+            gemDropAnimationTimer = 0.0f;
+            
+            // Clear the board first
+            clearBoard();
+            
+            // Set up gems to fall from above using existing falling system
+            setupInitialGemDrop();
+            
+            writeln("GameBoard: Entrance animation complete, starting gem drops");
+        }
+        
+        // Smooth ease-out animation
+        float easeProgress = 1.0f - (1.0f - progress) * (1.0f - progress) * (1.0f - progress);
+        
+        // Interpolate board position from right side to final position
+        import app : VIRTUAL_SCREEN_WIDTH;
+        float startX = VIRTUAL_SCREEN_WIDTH + 750.0f; // Start off-screen
+        boardPosition.x = startX + (finalBoardPosition.x - startX) * easeProgress;
+        boardPosition.y = finalBoardPosition.y; // Y stays constant
+    }
+    
+    /**
+     * Update gem drop animation - simplified to use existing falling system
+     */
+    private void updateGemDropAnimations(float deltaTime) {
+        if (!isPlayingGemDropAnimation) return;
+        
+        gemDropAnimationTimer += deltaTime;
+        
+        // Check if all gems have finished falling using existing falling system
+        bool allGemsFallingComplete = !isAnyGemFalling();
+        
+        // Check if we should play "GO!" announcement
+        if (gemDropAnimationTimer > 1.0f && !hasPlayedGoAnnouncement) {
+            hasPlayedGoAnnouncement = true;
+            // Play "GO!" sound effect
+            if (audioManager) {
+                audioManager.playSound("go_announcement", AudioType.VOX); // Use VOX for announcements
+            }
+            writeln("GameBoard: Playing GO! announcement");
+        }
+        
+        // Animation complete when all gems have stopped falling
+        if (allGemsFallingComplete && gemDropAnimationTimer > 0.5f) {
+            isPlayingGemDropAnimation = false;
+            writeln("GameBoard: Gem drop animation complete - game ready!");
+        }
+    }
+    
+    /**
+     * Setup initial gem drop using existing falling system
+     */
+    private void setupInitialGemDrop() {
+        auto rng = Random(unpredictableSeed);
+        
+        // Fill each column from bottom to top with staggered timing
+        for (int col = 0; col < BOARD_SIZE; col++) {
+            float columnDelay = col * 0.1f; // Stagger columns slightly
+            
+            for (int row = BOARD_SIZE - 1; row >= 0; row--) {
+                // Generate a valid gem type that doesn't create matches (same as fillBoardWithRandomGems)
+                GemType gemType = generateValidGemType(row, col, rng);
+                board[row][col].type = gemType;
+                board[row][col].isMatched = false;
+                board[row][col].isSelected = false;
+                board[row][col].isClearing = false;
+                board[row][col].currentFrame = 0;
+                board[row][col].frameTimer = 0.0f;
+                board[row][col].isAnimating = false;
+                board[row][col].wasClicked = false;
+                
+                // Set up falling animation using existing system
+                isFalling[row][col] = true;
+                
+                // Start gems above the screen
+                float startY = boardPosition.y - (BOARD_SIZE - row) * (gemSize + gemSpacing) - 100.0f;
+                currentPositions[row][col] = Vector2(
+                    boardPosition.x + col * (gemSize + gemSpacing),
+                    startY
+                );
+                
+                // Target position is normal grid position
+                targetPositions[row][col] = Vector2(
+                    boardPosition.x + col * (gemSize + gemSpacing),
+                    boardPosition.y + row * (gemSize + gemSpacing)
+                );
+                
+                // Set fall delay and initial velocity
+                fallDelays[row][col] = columnDelay;
+                fallVelocities[row][col] = initialFallSpeed;
+                
+                // Set gem position to current falling position
+                board[row][col].position = currentPositions[row][col];
+            }
+        }
+        
+        // Verify no matches will exist when gems land (same verification as fillBoardWithRandomGems)
+        // Note: We check this after setting up all gems but before they start falling
+        int matchCount = countAllMatches();
+        if (matchCount > 0) {
+            writefln("WARNING: Generated drop board has %d matches, regenerating...", matchCount);
+            // Clear and try again
+            clearBoard();
+            setupInitialGemDrop();
+            return;
+        }
+        
+        writeln("GameBoard: Set up clean gem drop with no initial matches");
+    }
+    
+    /**
+     * Update all gem positions based on current board position
+     */
+    private void updateAllGemPositions() {
+        for (int row = 0; row < BOARD_SIZE; row++) {
+            for (int col = 0; col < BOARD_SIZE; col++) {
+                if (board[row][col].type != GemType.NONE) {
+                    board[row][col].position.x = boardPosition.x + col * (gemSize + gemSpacing);
+                    board[row][col].position.y = boardPosition.y + row * (gemSize + gemSpacing);
+                }
+            }
         }
     }
 
