@@ -167,7 +167,7 @@ import game.game_board;
 
 
     ** Textures and Resources **
-    - The game board will have a texture that represents the game board background: resources/image/puzzleframe.png
+    - The game board will have a texture that represents the game board background: resources/image/FRAME.png
     - The gems will have textures that represent each gem type: resources/image/gem0.png, resources/image/gem1.png, etc.
     - The menu bubbles will have textures that represent each menu bubble: resources/image/menu_bubble0.png, resources/image/Classicmode.png
     - The score counter will have a texture that represents the score counter background: resources/image/SCOREPOD.png

@@ -198,9 +198,9 @@ class GameBoard {
         float boardHeight = (gemSize + gemSpacing) * BOARD_SIZE - gemSpacing;
         
         // Center the board within the puzzle frame
-        // Puzzle frame is 713x715, so center the 8x8 board within it
-        float frameWidth = 713.0f;
-        float frameHeight = 715.0f;
+        // Puzzle frame is 750x762, so center the 8x8 board within it
+        float frameWidth = 750.0f;
+        float frameHeight = 762.0f;
         
         // Position frame more to the right as specified in design notes
         float frameX = VIRTUAL_SCREEN_WIDTH * 0.6f - frameWidth / 2;
@@ -208,9 +208,11 @@ class GameBoard {
         
         // Center board within frame (accounting for frame border/padding)
         // With 84x84 gems and no spacing, the board is exactly 672x672 pixels
-        float framePadding = 20.5f; // Centered padding for 8x8 gems (713-672)/2 = 20.5
-        boardPosition.x = frameX + framePadding;
-        boardPosition.y = frameY + framePadding;
+        // Adjusted padding to align with actual frame tile positions
+        float framePaddingX = 43.0f; // Horizontal padding - moved right from 39.0
+        float framePaddingY = 30.0f; // Vertical padding - moved up from 45.0
+        boardPosition.x = frameX + framePaddingX;
+        boardPosition.y = frameY + framePaddingY;
         
         // Initialize empty board
         clearBoard();
@@ -224,19 +226,19 @@ class GameBoard {
      */
     private void loadTextures() {
         // Load puzzle frame background (main texture)
-        Texture2D tempPuzzleFrame = memoryManager.loadTexture("resources/image/puzzleframe.png");
-        Texture2D tempPuzzleAlpha = memoryManager.loadTexture("resources/image/puzzleframe_.png");
+        Texture2D tempPuzzleFrame = memoryManager.loadTexture("resources/image/FRAME.png");
+        Texture2D tempPuzzleAlpha = memoryManager.loadTexture("resources/image/FRAME_.png");
         
         if (tempPuzzleFrame.id == 0) {
-            writeln("ERROR: Failed to load puzzleframe.png");
+            writeln("ERROR: Failed to load FRAME.png");
         } else {
-            writeln("GameBoard: Loaded puzzleframe.png (", tempPuzzleFrame.width, "x", tempPuzzleFrame.height, ")");
+            writeln("GameBoard: Loaded FRAME.png (", tempPuzzleFrame.width, "x", tempPuzzleFrame.height, ")");
         }
         
         if (tempPuzzleAlpha.id == 0) {
-            writeln("WARNING: Failed to load puzzleframe_.png alpha map");
+            writeln("WARNING: Failed to load FRAME_.png alpha map");
         } else {
-            writeln("GameBoard: Loaded puzzleframe_.png alpha map (", tempPuzzleAlpha.width, "x", tempPuzzleAlpha.height, ")");
+            writeln("GameBoard: Loaded FRAME_.png alpha map (", tempPuzzleAlpha.width, "x", tempPuzzleAlpha.height, ")");
         }
         
         // Apply alpha mask to puzzle frame
@@ -964,8 +966,8 @@ class GameBoard {
         if (puzzleFrameTexture.id > 0) {
             // Position the puzzle frame
             import app : VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT;
-            float frameWidth = 713.0f;
-            float frameHeight = 715.0f;
+            float frameWidth = 750.0f;
+            float frameHeight = 762.0f;
             float frameX = VIRTUAL_SCREEN_WIDTH * 0.6f - frameWidth / 2;
             float frameY = VIRTUAL_SCREEN_HEIGHT / 2 - frameHeight / 2;
             
