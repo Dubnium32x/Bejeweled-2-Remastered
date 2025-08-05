@@ -28,7 +28,7 @@ A modern remake of **Bejeweled 2** built with [Raylib](https://www.raylib.com/) 
 git clone https://github.com/yourusername/Bejeweled-2-Remastered.git
 cd Bejeweled-2-Remastered
 dub build
-./bejeweled2
+./bejeweled-2-remastered
 ```
 
 ## Contributing
