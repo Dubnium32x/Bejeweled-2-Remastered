@@ -1805,7 +1805,8 @@ class TitleScreen : IScreen {
                 if (quitDialog.isDone()) {
                     // User confirmed quit and goodbye message finished
                     writeln("Application will now close");
-                    CloseWindow(); // This will close the Raylib window
+                    import app : shouldQuit;
+                    shouldQuit = true;
                 } else if (quitDialog.isCancelled()) {
                     // User cancelled quit
                     state = TitleState.MAINMENU; // Return to main menu

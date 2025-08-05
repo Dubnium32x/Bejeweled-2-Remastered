@@ -60,6 +60,7 @@ Vector2 GetMousePositionVirtual() {
     return Vector2(virtualMouseX, virtualMouseY);
 }
 
+bool shouldQuit = false; // Manual quit flag
 
 void main() {
     InitAudioDevice(); // Initialize audio device first
@@ -138,7 +139,6 @@ void main() {
     float lastTime = 0;
     float currentTime = 0;
     float frameTime = 0;
-    bool shouldQuit = false; // Manual quit flag
 
     while(!shouldQuit) {
         // Check for window close request (X button, Alt+F4, etc.) but NOT ESC
@@ -221,4 +221,7 @@ void main() {
     UnloadRenderTexture(virtualScreen); // Unload the render texture
     // Unload fonts
     // ... existing deinitialization ...
+
+    // Close Window
+    CloseWindow();
 }
