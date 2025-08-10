@@ -13,7 +13,20 @@ enum GameMode {
     ARRANGED
 }
 
+enum PlayMode {
+    CLASSIC = 0,
+    ACTION = 1,
+    ENDLESS = 2,
+    PUZZLE = 3,
+    TWILIGHT = 4,
+    HYPER = 5,
+    COGNITO = 6,
+    FINITY = 7,
+    ORIGINAL = 8
+}
+
 GameMode currentGameMode;
+PlayMode currentPlayMode;
 
 // Track the most recently played game mode (0=Classic, 1=Action, 2=Endless, 3=Puzzle)
 int mostRecentGameMode = 0; // Default to Classic
@@ -364,6 +377,17 @@ void setCurrentGameMode(GameMode mode) {
     }
     currentGameMode = mode;
     writeln("Current game mode set to: ", mode);
+}
+
+// Function to check which play mode is currently active
+PlayMode getCurrentPlayMode() {
+    return currentPlayMode;
+}
+
+// Function to set the current play mode
+void setCurrentPlayMode(PlayMode mode) {
+    currentPlayMode = mode;
+    writeln("Current play mode set to: ", mode);
 }
 
 // Function to save the most recent game mode to JSON file

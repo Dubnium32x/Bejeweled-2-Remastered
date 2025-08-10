@@ -127,8 +127,8 @@ void main() {
     // Check for and apply any pending resolution changes from previous sessions
     // This happens at startup before any rendering, so it won't cause disruptive flashes
     try {
-        if (optionsScreen.applyPendingResolutionChanges()) {
-            writeln("Applied pending resolution changes at startup");
+        if (optionsScreen.applySavedResolution()) {
+            writeln("Applied saved resolution at startup");
         }
     } catch (Exception e) {
         writeln("Error applying pending resolution changes: ", e.msg);

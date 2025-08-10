@@ -251,57 +251,44 @@ class OptionsScreen { // Renamed from OptionsPopup to OptionsScreen to match usa
     }
 
     // Public method to check for and apply pending resolution changes at game startup
-    public bool applyPendingResolutionChanges() {
+
+    // Always apply the saved resolution, not just when the flag is set
+    public bool applySavedResolution() {
         try {
             bool changesMade = false;
-            
-            // Always check and apply fullscreen setting on startup (regardless of pending changes)
+            // Always check and apply fullscreen setting
             if (currentOptions.fullscreen && !IsWindowState(ConfigFlags.FLAG_WINDOW_UNDECORATED)) {
                 writeln("Applying fullscreen setting from options.ini...");
                 ToggleBorderlessWindowed();
                 changesMade = true;
             } else if (!currentOptions.fullscreen && IsWindowState(ConfigFlags.FLAG_WINDOW_UNDECORATED)) {
                 writeln("Applying windowed setting from options.ini...");
-                ToggleBorderlessWindowed(); // Call again to toggle off if it was on
+                ToggleBorderlessWindowed();
                 changesMade = true;
             }
-            
-            // Apply pending resolution changes if any
-            if (currentOptions.hasPendingResolutionChange) {
-                writeln("Applying pending resolution changes...");
-                
-                // Apply resolution changes if needed
-                string[] resParts = currentOptions.resolution.split('x');
-                if (resParts.length == 2) {
-                    int width = resParts[0].to!int;
-                    int height = resParts[1].to!int;
-                    
-                    // Only change if different from current
-                    if (width != GetScreenWidth() || height != GetScreenHeight()) {
-                        writeln("Setting resolution to ", width, "x", height);
-                        SetWindowSize(width, height);
-                        changesMade = true;
-                    }
+            // Always apply the saved resolution
+            string[] resParts = currentOptions.resolution.split('x');
+            if (resParts.length == 2) {
+                int width = resParts[0].to!int;
+                int height = resParts[1].to!int;
+                if (width != GetScreenWidth() || height != GetScreenHeight()) {
+                    writeln("Setting resolution to ", width, "x", height);
+                    SetWindowSize(width, height);
+                    changesMade = true;
                 }
-                
-                // Reset the flag
+            }
+            // Reset the flag if it was set
+            if (currentOptions.hasPendingResolutionChange) {
                 currentOptions.hasPendingResolutionChange = false;
                 saveOptionsToFile();
             }
-            
-            return changesMade; // Changes were applied
+            return changesMade;
         } catch (Exception e) {
-            writeln("Error applying resolution changes: ", e.msg);
-            // Ensure the flag is reset to avoid repeated attempts
+            writeln("Error applying saved resolution: ", e.msg);
             currentOptions.hasPendingResolutionChange = false;
-            try {
-                saveOptionsToFile();
-            } catch (Exception saveEx) {
-                writeln("Error saving options file: ", saveEx.msg);
-            }
+            try { saveOptionsToFile(); } catch (Exception saveEx) { writeln("Error saving options file: ", saveEx.msg); }
         }
-        
-        return false; // No changes were applied
+        return false;
     }
 
     void update(float deltaTime) {
