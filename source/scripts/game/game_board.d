@@ -6,6 +6,7 @@ import std.random;
 import std.conv : to;
 import std.math : abs, sqrt, sin, cos;
 import std.string : toStringz;
+import std.algorithm;
 
 import world.memory_manager;
 import world.audio_manager;
@@ -184,6 +185,9 @@ class GameBoard {
         
         // Font for cascade counter
         Font cascadeFont;
+
+        // Tracks the largest number of gems matched in a single line
+        private int maxLineMatchCount = 0;
     }
 
     /**
@@ -587,6 +591,55 @@ class GameBoard {
         }
         
         return matchCount;
+    }
+
+    /**
+     * Count all 3x1 matches on the board
+     */
+    private int countThreeInARowMatches() {
+        int threeInARowCount = 0;
+
+        // Check horizontal matches
+        for (int row = 0; row < BOARD_SIZE; row++) {
+            int consecutiveCount = 1;
+            GemType currentType = board[row][0].type;
+
+            for (int col = 1; col <= BOARD_SIZE; col++) {
+                GemType nextType = (col < BOARD_SIZE) ? board[row][col].type : GemType.NONE;
+
+                if (nextType == currentType && currentType != GemType.NONE) {
+                    consecutiveCount++;
+                } else {
+                    if (consecutiveCount == 3) {
+                        threeInARowCount++;
+                    }
+                    consecutiveCount = 1;
+                    currentType = nextType;
+                }
+            }
+        }
+
+        // Check vertical matches
+        for (int col = 0; col < BOARD_SIZE; col++) {
+            int consecutiveCount = 1;
+            GemType currentType = board[0][col].type;
+
+            for (int row = 1; row <= BOARD_SIZE; row++) {
+                GemType nextType = (row < BOARD_SIZE) ? board[row][col].type : GemType.NONE;
+
+                if (nextType == currentType && currentType != GemType.NONE) {
+                    consecutiveCount++;
+                } else {
+                    if (consecutiveCount == 3) {
+                        threeInARowCount++;
+                    }
+                    consecutiveCount = 1;
+                    currentType = nextType;
+                }
+            }
+        }
+
+        return threeInARowCount;
     }
 
     /**
@@ -1888,6 +1941,12 @@ class GameBoard {
             isProcessingMatches = false;
             writeln("GameBoard: No matches found, resetting processing state");
         }
+
+        int threeInARowMatches = countThreeInARowMatches();
+        if (threeInARowMatches >= 2) {
+            audioManager.playSFX("resources/audio/sfx/match double.ogg");
+            writeln("GameBoard: Played match double sound for two 3x1 matches");
+        }
     }
 
     /**
@@ -1918,25 +1977,25 @@ class GameBoard {
     private int markMatches() {
         int totalMatched = 0;
         numberOfSeparateMatches = 0; // Reset counter
-        
+        maxLineMatchCount = 0; // Reset max line match count
+
         // Reset match flags
         for (int row = 0; row < BOARD_SIZE; row++) {
             for (int col = 0; col < BOARD_SIZE; col++) {
                 board[row][col].isMatched = false;
             }
         }
-        
+
+        // Check horizontal and vertical matches
+        totalMatched += markTraditionalMatches();
+
+        // Check 2x2 square matches in Arranged mode
         if (currentGameMode == GameMode.ARRANGED) {
-            // In Arranged mode, look for BOTH traditional matches AND 2x2 square matches
-            totalMatched = markTraditionalMatches();  // First mark traditional 3+ matches
-            totalMatched += mark2x2Squares();         // Then add 2x2 square matches
-        } else {
-            // In Original mode, look for traditional 3+ gem matches only
-            totalMatched = markTraditionalMatches();
+            totalMatched += mark2x2Squares();
         }
-        
-        writefln("GameBoard: Found %d separate matches totaling %d matched gems (mode: %s)", 
-                numberOfSeparateMatches, totalMatched, currentGameMode);
+
+        writefln("GameBoard: Found %d separate matches totaling %d matched gems (max line match: %d)", 
+                numberOfSeparateMatches, totalMatched, maxLineMatchCount);
         return totalMatched;
     }
     
@@ -1980,7 +2039,7 @@ class GameBoard {
                         totalMatched++;
                     }
                     
-                   
+                    maxLineMatchCount = max(maxLineMatchCount, 4); // Update max line match count for 2x2 squares
                     
                     writefln("GameBoard: Marked 2x2 square match of %s gems at (%d,%d)", 
                             topLeft, row, col);
@@ -1994,38 +2053,35 @@ class GameBoard {
     /**
      * Mark traditional 3+ gem line matches for Original mode
      */
-    /**
-     * Mark traditional 3+ gem line matches for Original mode
-     */
     private int markTraditionalMatches() {
         int totalMatched = 0;
-        
+
         // Mark horizontal matches
         for (int row = 0; row < BOARD_SIZE; row++) {
             int consecutiveCount = 1;
             GemType currentType = board[row][0].type;
             int startCol = 0;
-            
+
             for (int col = 1; col <= BOARD_SIZE; col++) {
                 GemType nextType = (col < BOARD_SIZE) ? board[row][col].type : GemType.NONE;
-                
+
                 if (nextType == currentType && currentType != GemType.NONE) {
                     consecutiveCount++;
                 } else {
                     // End of sequence, check if it's a match
-                    if (consecutiveCount >= 3 && currentType != GemType.NONE) {
-                        numberOfSeparateMatches++; // Count this match
+                    if (consecutiveCount >= 3) {
+                        numberOfSeparateMatches++;
+                        totalMatched += consecutiveCount;
+                        maxLineMatchCount = max(maxLineMatchCount, consecutiveCount); // Update max line match count
+
                         // Mark all gems in this match
                         for (int c = startCol; c < startCol + consecutiveCount; c++) {
                             if (!board[row][c].isMatched) {
                                 board[row][c].isMatched = true;
-                                totalMatched++;
                             }
                         }
-                        writefln("GameBoard: Marked horizontal match of %d %s gems at row %d, cols %d-%d", 
-                                consecutiveCount, currentType, row, startCol, startCol + consecutiveCount - 1);
                     }
-                    
+
                     // Start new sequence
                     consecutiveCount = 1;
                     currentType = nextType;
@@ -2033,33 +2089,33 @@ class GameBoard {
                 }
             }
         }
-        
+
         // Mark vertical matches
         for (int col = 0; col < BOARD_SIZE; col++) {
             int consecutiveCount = 1;
             GemType currentType = board[0][col].type;
             int startRow = 0;
-            
+
             for (int row = 1; row <= BOARD_SIZE; row++) {
                 GemType nextType = (row < BOARD_SIZE) ? board[row][col].type : GemType.NONE;
-                
+
                 if (nextType == currentType && currentType != GemType.NONE) {
                     consecutiveCount++;
                 } else {
                     // End of sequence, check if it's a match
-                    if (consecutiveCount >= 3 && currentType != GemType.NONE) {
-                        numberOfSeparateMatches++; // Count this match
+                    if (consecutiveCount >= 3) {
+                        numberOfSeparateMatches++;
+                        totalMatched += consecutiveCount;
+                        maxLineMatchCount = max(maxLineMatchCount, consecutiveCount); // Update max line match count
+
                         // Mark all gems in this match
                         for (int r = startRow; r < startRow + consecutiveCount; r++) {
                             if (!board[r][col].isMatched) {
                                 board[r][col].isMatched = true;
-                                totalMatched++;
                             }
                         }
-                        writefln("GameBoard: Marked vertical match of %d %s gems at col %d, rows %d-%d", 
-                                consecutiveCount, currentType, col, startRow, startRow + consecutiveCount - 1);
                     }
-                    
+
                     // Start new sequence
                     consecutiveCount = 1;
                     currentType = nextType;
@@ -2067,7 +2123,7 @@ class GameBoard {
                 }
             }
         }
-        
+
         return totalMatched;
     }
 
@@ -2310,7 +2366,7 @@ class GameBoard {
                         board[row][col].position = current;
                         
                         // Play gem landing sound
-                        audioManager.playSFX("resources/audio/sfx/gemongem2.ogg", 0.8f);
+                        audioManager.playSFX("resources/audio/sfx/gem hit.ogg", 0.8f);
                         
                         writefln("GameBoard: Gem at (%d,%d) finished falling to y=%.1f", row, col, current.y);
                     } else {
@@ -2472,51 +2528,101 @@ class GameBoard {
         if (matchedGemCount > 0) {
             int matchScore = calculateMatchScore(matchedGemCount);
             score += matchScore;
-            
+
             writefln("GameBoard: Sound selection - matchedGemCount=%d, cascadeMultiplier=%d, numberOfSeparateMatches=%d", 
                     matchedGemCount, cascadeMultiplier, numberOfSeparateMatches);
-            
+
             // Play match clearing sound based on match size and cascade multiplier
-            if (cascadeMultiplier >= 5) {
-                // Huge cascade combo
-                writeln("Playing modern_combo62 (cascade 5+)");
-                audioManager.playSFX("resources/audio/sfx/modern_combo62.ogg");
-            } else if (cascadeMultiplier >= 4) {
-                // Big cascade combo
-                writeln("Playing modern_combo52 (cascade 4+)");
-                audioManager.playSFX("resources/audio/sfx/modern_combo52.ogg");
-            } else if (cascadeMultiplier >= 3) {
-                // Medium cascade combo
-                writeln("Playing modern_combo42 (cascade 3+)");
-                audioManager.playSFX("resources/audio/sfx/modern_combo42.ogg");
-            } else if (cascadeMultiplier >= 2) {
-                // Small cascade combo (chain reaction)
-                writeln("Playing modern_combo32 (cascade 2+)");
-                audioManager.playSFX("resources/audio/sfx/modern_combo32.ogg");
-            } else if (numberOfSeparateMatches >= 2) {
-                // Multiple separate matches (L, T, +, or two 3-gem matches)
-                writeln("Playing gotsetbig2 (multiple separate matches)");
-                audioManager.playSFX("resources/audio/sfx/gotsetbig2.ogg");
-            } else if (matchedGemCount >= 6) {
-                // Very large single match
-                writeln("Playing modern_combo32 (6+ gem single match)");
-                audioManager.playSFX("resources/audio/sfx/modern_combo32.ogg");
-            } else if (matchedGemCount >= 5) {
-                // Large single match
-                writeln("Playing modern_combo22 (5 gem single match)");
-                audioManager.playSFX("resources/audio/sfx/modern_combo22.ogg");
-            } else if (matchedGemCount >= 4) {
-                // 4-gem match
-                writeln("Playing gotsetbig2 (4 gem match)");
-                audioManager.playSFX("resources/audio/sfx/gotsetbig2.ogg");
+            if (currentGameMode == GameMode.ORIGINAL) {
+                if (cascadeMultiplier >= 6) {
+                    audioManager.playSFX("resources/audio/sfx/match.ogg");
+                    audioManager.playSFX("resources/audio/sfx/cascade x6.ogg");
+                } else if (cascadeMultiplier >= 5) {
+                    audioManager.playSFX("resources/audio/sfx/cascade x5.ogg", 0.8f);
+                    audioManager.playSFX("resources/audio/sfx/match.ogg");
+                } else if (cascadeMultiplier >= 4) {
+                    audioManager.playSFX("resources/audio/sfx/cascade x4.ogg", 0.8f);
+                    audioManager.playSFX("resources/audio/sfx/match.ogg");
+                } else if (cascadeMultiplier >= 3) {
+                    audioManager.playSFX("resources/audio/sfx/cascade x3.ogg", 0.8f);
+                    audioManager.playSFX("resources/audio/sfx/match.ogg");
+                } else if (cascadeMultiplier >= 2) {
+                    audioManager.playSFX("resources/audio/sfx/cascade x2.ogg", 0.8f);
+                    audioManager.playSFX("resources/audio/sfx/match.ogg", 0.8f);
+                } else {
+                    audioManager.playSFX("resources/audio/sfx/match.ogg", 0.8f);
+                }
             } else {
-                // Standard single 3-gem match
-                writeln("Playing gotset2 (3 gem match)");
-                audioManager.playSFX("resources/audio/sfx/gotset2.ogg");
+                // For ARRANGED or other modes, play modern combo sounds
+                if (cascadeMultiplier >= 6) {
+                    audioManager.playSFX("resources/audio/sfx/modern_combo22.ogg", 0.8f);
+                    audioManager.playSFX("resources/audio/sfx/modern_combo72.ogg");
+                } else if (cascadeMultiplier >= 5) {
+                    audioManager.playSFX("resources/audio/sfx/modern_combo22.ogg", 0.8f);
+                    audioManager.playSFX("resources/audio/sfx/modern_combo62.ogg", 0.8f);
+                } else if (cascadeMultiplier >= 4) {
+                    audioManager.playSFX("resources/audio/sfx/modern_combo22.ogg", 0.8f);
+                    audioManager.playSFX("resources/audio/sfx/modern_combo52.ogg", 0.8f);
+                } else if (cascadeMultiplier >= 3) {
+                    audioManager.playSFX("resources/audio/sfx/modern_combo42.ogg", 0.8f);
+                    audioManager.playSFX("resources/audio/sfx/modern_combo22.ogg", 0.8f);
+                } else if (cascadeMultiplier >= 2) {
+                    audioManager.playSFX("resources/audio/sfx/modern_combo32.ogg", 0.8f);
+                    audioManager.playSFX("resources/audio/sfx/modern_combo22.ogg", 0.8f);
+                } else {
+                    audioManager.playSFX("resources/audio/sfx/modern_combo22.ogg", 0.8f);
+                }
             }
-            
+
+            // Make Sound for clearing specific matches
+            if (maxLineMatchCount >= 6) {
+                audioManager.playSFX("resources/audio/sfx/6 match.ogg", 0.8f);
+            } else if (maxLineMatchCount >= 5) {
+                audioManager.playSFX("resources/audio/sfx/hypercube create.ogg", 0.8f);
+            } else if (maxLineMatchCount >= 4) {
+                audioManager.playSFX("resources/audio/sfx/powergem create.ogg", 0.8f);
+            } else return;
             writefln("GameBoard: Started clearing animation for %d gems, scored %d points (x%d multiplier)", 
                     matchedGemCount, matchScore, cascadeMultiplier);
+            
+            // Check for 2x2 square matches in ARRANGED mode
+            if (currentGameMode == GameMode.ARRANGED) {
+                int squareMatches = mark2x2Squares();
+                if (squareMatches > 0) {
+                    writefln("GameBoard: Found %d 2x2 square matches in ARRANGED mode", squareMatches);
+                    // Play sound for 2x2 square match
+                    audioManager.playSFX("resources/audio/sfx/powergem create.ogg", 0.8f);
+                }
+            }
+
+            // Check for other special match types, L, T and +
+            // Power gem for original, lightning for arranged
+            if (currentGameMode == GameMode.ARRANGED) {
+                int specialMatches = markTraditionalMatches();
+                if (specialMatches > 0) {
+                    writefln("GameBoard: Found %d traditional matches in ARRANGED mode", specialMatches);
+                    // Play sound for traditional match
+                    audioManager.playSFX("resources/audio/sfx/additional/lightning gem create.ogg", 0.8f);
+                }
+            } else {
+                // For ORIGINAL mode, check for traditional matches
+                int traditionalMatches = markTraditionalMatches();
+                if (traditionalMatches > 0) {
+                    writefln("GameBoard: Found %d traditional matches in ORIGINAL mode", traditionalMatches);
+                    // Play sound for traditional match
+                    audioManager.playSFX("resources/audio/sfx/powergem create.ogg", 0.8f);
+                }
+            }
+
+            // Check for 2 3x1 matches in a row
+            if (currentGameMode == GameMode.ORIGINAL) {
+                int threeInARowMatches = markTraditionalMatches(); // Corrected function call
+                if (threeInARowMatches > 0) {
+                    writefln("GameBoard: Found %d 3x1 matches in ORIGINAL mode", threeInARowMatches);
+                    // Play sound for 3x1 match
+                    audioManager.playSFX("resources/audio/sfx/match double.ogg", 0.8f);
+                }
+            }
         }
     }
 
